@@ -1,6 +1,5 @@
 import torch
 from torch.optim import Adam, lr_scheduler
-from helpers.data import X, X_clean
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss, ShiftNMFLoss
 import matplotlib.pyplot as plt
@@ -21,11 +20,13 @@ class ShiftNMF(torch.nn.Module):
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True)*2)
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True)*2)
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True))
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True))
         # self.tau = torch.nn.Parameter(torch.randn(self.N, self.rank)*10, requires_grad=True)
         self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         self.tau = lambda: self.tau_tilde
+        
+        self.lambda_tau = 999999
         
         # Prøv også med SGD
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
@@ -37,6 +38,9 @@ class ShiftNMF(torch.nn.Module):
             self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-2)
         else:
             self.scheduler = None
+            
+    def reg_loss(self):
+        return self.lambda_tau * torch.sum(self.tau()**2)
 
     def forward(self):
         # Get half of the frequencies
@@ -68,7 +72,11 @@ class ShiftNMF(torch.nn.Module):
             output = self.forward()
 
             # backward
-            loss = self.lossfn(output)
+            rec_loss = self.lossfn(output)
+            reg_loss = self.reg_loss()
+            
+            loss = rec_loss + reg_loss
+            
             loss.backward()
 
             change = torch.sign(self.tau_tilde.grad)
@@ -78,6 +86,7 @@ class ShiftNMF(torch.nn.Module):
             #update tau
             if self.iters > tau_iter:
                 
+                reg_grad = self.lambda_tau * 2 * self.tau_tilde
                 change = (torch.abs(grad) > tau_thres) * change
                 
                 self.tau_tilde = torch.nn.Parameter(self.tau_tilde + change)
@@ -88,8 +97,8 @@ class ShiftNMF(torch.nn.Module):
                 self.scheduler.step(loss)
             
             running_loss.append(loss.item())
-            self.stopper.track_loss(loss)
-            self.improvement_stopper.track_loss(loss)
+            self.stopper.track_loss(rec_loss)
+            self.improvement_stopper.track_loss(rec_loss)
             
             # print loss
             if verbose:
@@ -111,14 +120,14 @@ class ShiftNMF(torch.nn.Module):
 if __name__ == "__main__":
     import scipy.io
     import numpy as np
-    from helpers.data import X, X_clean
-
-    X  = X_clean
+    import pandas as pd
+    
+    X  = pd.read_csv("X.csv").to_numpy()
 
     alpha = 1e-5
 
     nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10)
-    W, H, tau = nmf.fit(verbose=True)
+    W, H, tau = nmf.fit(verbose=True, max_iter=250)
 
     plt.figure()
     for signal in H:
