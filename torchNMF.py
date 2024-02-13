@@ -3,7 +3,6 @@ import torch.nn.functional as F
 from torch.optim import Adam, lr_scheduler
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss, VolLoss
-import scipy
 
 
 class NMF(torch.nn.Module):
