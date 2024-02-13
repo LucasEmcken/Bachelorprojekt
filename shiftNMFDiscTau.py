@@ -20,13 +20,13 @@ class ShiftNMF(torch.nn.Module):
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True))
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True)*0)
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True))
         # self.tau = torch.nn.Parameter(torch.randn(self.N, self.rank)*10, requires_grad=True)
         self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         self.tau = lambda: self.tau_tilde
         
-        self.lambda_tau = 999999
+        self.lambda_tau = 0.0001
         
         # Prøv også med SGD
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
@@ -59,7 +59,7 @@ class ShiftNMF(torch.nn.Module):
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
 
-    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=0, tau_thres=1e-5):
+    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=0, tau_thres=1e-1):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
@@ -75,10 +75,13 @@ class ShiftNMF(torch.nn.Module):
             rec_loss = self.lossfn(output)
             reg_loss = self.reg_loss()
             
-            loss = rec_loss + reg_loss
+            loss = rec_loss
             
             loss.backward()
 
+            # print(np.linalg.norm(self.tau_tilde.grad.detach().numpy()))
+            # print(self.tau_tilde.grad)
+            
             change = torch.sign(self.tau_tilde.grad)
             grad = self.tau_tilde.grad
             #set gradient 0, such that the tau is not updated by the optimizer
@@ -86,7 +89,7 @@ class ShiftNMF(torch.nn.Module):
             #update tau
             if self.iters > tau_iter:
                 
-                reg_grad = self.lambda_tau * 2 * self.tau_tilde
+                # reg_grad = self.lambda_tau * 2 * self.tau_tilde
                 change = (torch.abs(grad) > tau_thres) * change
                 
                 self.tau_tilde = torch.nn.Parameter(self.tau_tilde + change)
@@ -126,24 +129,31 @@ if __name__ == "__main__":
 
     alpha = 1e-5
 
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10)
-    W, H, tau = nmf.fit(verbose=True, max_iter=250)
+    nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=25)
+    W, H, tau = nmf.fit(verbose=1, max_iter=5000)
 
-    plt.figure()
-    for signal in H:
-        plt.plot(signal)
-    plt.title("H - the latent variables")
+    fig, axs = plt.subplots(nmf.rank, 1)
+    for i in range(nmf.rank):
+        axs[i].plot(H[i,:])
+    
     plt.show()
 
 
     plt.figure()
-    plt.imshow(W)
+    plt.imshow(W, aspect='auto')
     plt.colorbar()
     plt.title("W - The mixings")
     plt.show()
 
+    #plot every W in a separate plot
+    # fig, axs = plt.subplots(nmf.rank, 1)
+    # for i in range(nmf.rank):
+    #     axs[i].plot(H[:,i])
+    
+    # plt.show()
+    
     plt.figure()
-    plt.imshow(tau)
+    plt.imshow(tau, aspect='auto')
     plt.colorbar()
     plt.title("Tau")
     plt.show()

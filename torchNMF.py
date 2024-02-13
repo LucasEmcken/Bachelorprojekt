@@ -21,9 +21,7 @@ class NMF(torch.nn.Module):
 
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         self.W = torch.nn.Parameter(torch.randn(n_row, rank, requires_grad=True))
-        # print(torch.mean(self.X, dim=0).shape)
         self.H = torch.nn.Parameter(torch.randn(rank, n_col, requires_grad=True))
-        # print(torch.mean(self.X, dim=0).shape)
 
         self.optimizer = Adam(self.parameters(), lr=lr)
         self.stopper = ChangeStopper(alpha=alpha, patience=patience+5)
