@@ -79,3 +79,52 @@
    T = mod(T,sizeX2);
    ind = find(T>floor(sizeX2/2));
    T(ind) = T(ind)-sizeX2;
+
+
+function [T,A] = estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
+
+noc = size(A,2);
+if mod(N(2),2) == 0
+    sSf = 2*Nf(2)-2;
+else
+    sSf = 2*Nf(2)-1;
+end
+t1 = randperm(size(A,1));
+t2 = randperm(noc);
+for k = t1   
+    Resf=Xf(k,:)-A(k,:)*(krSf.*exp(T(k,:)'*krf));
+    for d = t2  
+        if sum(TauW(d,:),2)>0
+           Resfud = Resf+A(k,d)*(krSf(d,:).*exp(T(k,d)*krf));
+           Xft = squeeze(unmatricizing(Resfud,1,[1 Nf(2) prod(Nf(3:end))]));
+           if size(krpr,1) == 1
+               Xd = Xft;
+           else
+               Xd = krpr(:,d)'*Xft.';
+           end
+           C = Xd.*conj(Sf(d,:));
+           if mod(N(2),2) == 0
+               C = [C conj(C(end-1:-1:2))];
+           else
+               C = [C conj(C(end:-1:2))];
+           end
+           C = ifft(C,'symmetric');
+           C = C.*TauW(d,:);       
+           if constr
+               [y,ind] = max(C);
+           else
+               [y,ind] = max(abs(C));
+           end
+           T(k,d) = (ind-sSf)-1;
+           A(k,d) = C(ind)/(sum(w.*(krSf(d,:).*conj(krSf(d,:))))/sSf+Lambda(d));
+           if abs(T(k,d))>(sSf/2)
+               if T(k,d)>0
+                   T(k,d) = T(k,d)-sSf;
+               else
+                   T(k,d) = T(k,d)+sSf;
+               end
+           end
+           Resf = Resfud-A(k,d)*(krSf(d,:).*exp(T(k,d)*krf));
+        end
+   end
+end
