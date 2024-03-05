@@ -1,0 +1,226 @@
+import torch
+import torch.nn.functional as F
+from torch.optim import Adam, lr_scheduler
+from helpers.callbacks import ChangeStopper, ImprovementStopper
+from helpers.losses import frobeniusLoss, VolLoss
+import scipy
+
+
+torch.manual_seed(0)
+
+torch.autograd.set_detect_anomaly(True)
+
+class Hard_Model(torch.nn.Module):
+    def __init__(self, X, rank, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
+        super().__init__()
+
+        n_row, n_col = X.shape
+        self.softplus = torch.nn.Softplus()
+        self.softmax = torch.nn.Softmax()
+        self.n_row = n_row # nr of samples
+        self.n_col = n_col
+        self.rank = rank
+        
+        self.X = torch.tensor(X)
+        self.std = torch.std(self.X)
+        self.X = self.X/self.std
+        
+        #self.lossfn = frobeniusLoss(torch.tensor(self.X))
+        self.lossfn = frobeniusLoss(self.X.clone().detach())
+        
+        # Initialization of Tensors/Matrices a and b with size NxR and RxM
+        #Weights of each component
+        self.W = torch.nn.Parameter(torch.rand(n_row, rank, requires_grad=True))
+        # print(torch.mean(self.X, dim=0).shape)
+       
+        #self.means = torch.nn.Parameter(torch.tensor([(i+1/2)*n_col/rank for i in range(rank+1)], requires_grad=True,dtype=torch.double))
+        # self.sigma = torch.nn.Parameter(torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)*200)
+        # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
+
+        self.sigma = torch.nn.Parameter(torch.tensor([100,50,150], requires_grad=True,dtype=torch.float32))
+        self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
+        #self.multiplicity = torch.nn.Parameter(torch.randn(rank, 1, requires_grad=True))
+
+        #self.means = torch.nn.Parameter(torch.tensor([1000, 4000, 8000.], requires_grad=True,dtype = torch.float32))
+        self.means = torch.tensor([1000, 4000, 8000.],dtype = torch.float32)
+        # self.sigma = torch.nn.Parameter(torch.tensor([100,50,150], requires_grad=True,dtype=torch.double))
+        # self.spacing = torch.nn.Parameter(torch.tensor([100,100,100], requires_grad=True,dtype=torch.double))
+        # #
+        print("initial values:")
+        print(self.means)
+        print(self.sigma)
+        print(self.spacing)
+        #Highest multiplicity available
+        max_multiplicity = 8
+        self.multiplicity = torch.nn.Parameter(torch.rand(rank, max_multiplicity, requires_grad=True,dtype=torch.double))
+        #self.multiplicity = torch.nn.Parameter(torch.tensor([[0,10,0,0],[0,10,0,0],[0,10,0,0]], requires_grad=True,dtype=torch.float32))
+        self.mult = torch.linspace(1,max_multiplicity,max_multiplicity, dtype=torch.int32)
+        #self.multiplicity = torch.tensor([2,2,2])
+        
+        #self.H = torch.nn.Parameter(torch.randn(rank, n_col, requires_grad=True))
+        #After calculation should end up with the following dimensions: rank * n_col
+
+        # print(torch.mean(self.X, dim=0).shape
+
+        #self.optimizer = Adam(self.parameters(), lr=lr)
+        self.optimizer = Adam([self.W, self.multiplicity], lr=lr)
+
+        self.stopper = ChangeStopper(alpha=alpha, patience=patience+5)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
+        
+        self.w_optimizer = Adam([self.W, self.multiplicity], lr=lr)
+        self.peak_position_optimizer  = Adam([self.means], lr=lr)
+        self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
+        
+        if factor < 1:
+            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-5)
+        else:
+            self.scheduler = None
+
+    def pascal(self, x):
+        triangle = torch.zeros((x, x))
+        for i in range(x):
+            triangle[i, 0] = 1
+            triangle[i, i] = 1
+            if i > 0:
+                for j in range(1, i):
+                    triangle[i, j] = triangle[i - 1, j - 1] + triangle[i - 1, j]
+        return triangle[-1]
+
+    def lorentzian(self, x, mean, variance):
+        #print(variance) nan problem was the variance
+        return 1 / (torch.pi * variance * (1 + ((x - mean) / variance) ** 2))
+    def gauss(self, x, mean, variance):
+        return 1/(variance*(2*torch.pi)**(1/2))*torch.exp(-1/2*((x-mean)/variance)**2)
+
+    def multiplet(self, x, mult, mean, sigma, spacing, type='lorentz'):
+        triangle = self.pascal(mult)
+        t_max = torch.max(triangle)
+        triangle = triangle/t_max
+        y = torch.zeros(len(x),dtype=float)
+
+        if mult%2 == 0:
+            space = -1*mult/2*spacing+spacing/2
+        else:
+            space = -1*(mult-1)/2*spacing
+        for i,size in enumerate(triangle):
+            if type == 'lorentz':
+                y += self.lorentzian(x, mean+space, sigma)*size
+            else:
+                y += self.gauss(x, mean+space, sigma)*size
+            space +=  spacing
+        return y
+
+    def forward(self):
+        time = torch.linspace(0,self.n_col,self.n_col)
+        self.C = torch.zeros((self.rank, self.n_col))
+        
+        for i in range(self.rank):
+            for j in range(len(self.mult)):
+                self.C[i] += self.softmax(self.multiplicity[i])[j]*self.multiplet(time,
+                                        self.mult[j],
+                                        self.means[i],
+                                        torch.clamp(self.sigma[i],1),
+                                        self.softplus(self.spacing[i]),
+                                        type="lorentz")
+        
+        WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
+        return WC
+    
+    def fit_grad(self, grad):
+        stopper = ChangeStopper(alpha=1e-3, patience=5)
+        improvement_stopper = ImprovementStopper(min_improvement=1e-3, patience=5)
+
+        while not stopper.trigger() and not improvement_stopper.trigger():
+            grad.zero_grad()
+            output = self.forward()
+            loss = self.lossfn.forward(output)
+            print(f"Loss: {loss.item()}", end='\r')
+            loss.backward()
+            grad.step()
+            stopper.track_loss(loss)
+            improvement_stopper.track_loss(loss)
+
+    def fit(self, verbose=False, return_loss=False):
+        running_loss = []
+        while not self.stopper.trigger() and not self.improvement_stopper.trigger():
+            # zero optimizer gradient
+            self.optimizer.zero_grad()
+            # self.fit_grad(self.peak_position_optimizer)
+            # self.fit_grad(self.w_optimizer)
+            # self.fit_grad(self.all_peak_optimizer)
+            # self.fit_grad(self.w_optimizer)
+
+            # # forward
+            output = self.forward()
+
+
+            loss = self.lossfn.forward(output)
+            loss.backward()
+            # Update
+            self.optimizer.step()
+    
+            if self.scheduler != None:
+                self.scheduler.step(loss)
+
+            running_loss.append(loss.item())
+            self.stopper.track_loss(loss)
+            self.improvement_stopper.track_loss(loss)
+
+            # print loss
+            if verbose:
+                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
+
+        W = self.softplus(self.W).detach().numpy()
+        C = self.C.detach().numpy()
+        print(self.means)
+        print(self.softplus(self.sigma))
+        print(self.multiplicity)
+        print(self.softplus(self.spacing))
+        if return_loss:
+            return W, C, running_loss
+        else:
+            return W, C
+
+
+
+if __name__ == "__main__":
+    from helpers.callbacks import explained_variance
+    #from helpers.data import X_clean
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+
+    # mat = scipy.io.loadmat('helpers/data/NMR_mix_DoE.mat')
+    
+    # X = mat.get('xData')
+    # targets = mat.get('yData')
+    # target_labels = mat.get('yLabels')
+    # axis = mat.get("Axis")
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
+    alpha = 1e-10
+    model = Hard_Model(X, 3, lr=10, alpha = alpha, factor=1, patience=5, min_imp=1e-3)
+    model.forward()
+    C_ini = model.C.detach().numpy()
+    for c in C_ini:
+        plt.plot(c)
+    plt.show()
+
+    W, C = model.fit(verbose=True)
+    #print(W)
+    print(scipy.special.softmax(model.multiplicity.detach().numpy(), axis=1))
+    #print(f"Explained variance HardModel: {explained_variance(model.X.detach().numpy(), np.matmul(W, C))}")
+    #print(np.matmul(W, C).shape) 
+    plt.figure()
+    for vec in C:
+        plt.plot(vec)
+    plt.title("C")
+    plt.show()
+
+    plt.plot(model.X.detach().numpy()[0])
+    plt.plot(np.matmul(W,C)[0])
+    plt.show()
+
+    # for xt in model.X.detach().numpy():
+    #     plt.plot(xt)
+    # plt.show()
