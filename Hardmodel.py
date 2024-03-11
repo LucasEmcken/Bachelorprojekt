@@ -30,6 +30,8 @@ class Hard_Model(torch.nn.Module):
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         #Weights of each component
+        # true_W  = torch.tensor(pd.read_csv("W.csv").to_numpy()/self.std, dtype=torch.float)
+        # self.W = torch.nn.Parameter(true_W, requires_grad=True)
         self.W = torch.nn.Parameter(torch.rand(n_row, rank, requires_grad=True))
         # print(torch.mean(self.X, dim=0).shape)
        
@@ -37,7 +39,7 @@ class Hard_Model(torch.nn.Module):
         # self.sigma = torch.nn.Parameter(torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)*200)
         # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
 
-        self.sigma = torch.nn.Parameter(torch.tensor([100,50,150], requires_grad=True,dtype=torch.float32))
+        self.sigma = torch.nn.Parameter(torch.tensor([100,300,50], requires_grad=True,dtype=torch.float32))
         self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
         #self.multiplicity = torch.nn.Parameter(torch.randn(rank, 1, requires_grad=True))
 
@@ -51,9 +53,9 @@ class Hard_Model(torch.nn.Module):
         print(self.sigma)
         print(self.spacing)
         #Highest multiplicity available
-        max_multiplicity = 8
+        max_multiplicity = 5
         self.multiplicity = torch.nn.Parameter(torch.rand(rank, max_multiplicity, requires_grad=True,dtype=torch.double))
-        #self.multiplicity = torch.nn.Parameter(torch.tensor([[0,10,0,0],[0,10,0,0],[0,10,0,0]], requires_grad=True,dtype=torch.float32))
+        #self.multiplicity = torch.nn.Parameter(torch.tensor([[0,10,0,0,0],[0,10,0,0,0],[0,10,0,0,0]], requires_grad=True,dtype=torch.float32))
         self.mult = torch.linspace(1,max_multiplicity,max_multiplicity, dtype=torch.int32)
         #self.multiplicity = torch.tensor([2,2,2])
         
@@ -63,12 +65,14 @@ class Hard_Model(torch.nn.Module):
         # print(torch.mean(self.X, dim=0).shape
 
         #self.optimizer = Adam(self.parameters(), lr=lr)
-        self.optimizer = Adam([self.W, self.multiplicity], lr=lr)
+        self.optimizer = Adam([self.multiplicity, self.W], lr=lr)
 
-        self.stopper = ChangeStopper(alpha=alpha, patience=patience+5)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
+        self.stopper = ChangeStopper(alpha=alpha, patience=patience)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
-        self.w_optimizer = Adam([self.W, self.multiplicity], lr=lr)
+        self.w_optimizer = Adam([self.W], lr=lr)
+        self.mult_optimizer  = Adam([self.multiplicity], lr=lr)
+        
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
         
@@ -128,8 +132,8 @@ class Hard_Model(torch.nn.Module):
         return WC
     
     def fit_grad(self, grad):
-        stopper = ChangeStopper(alpha=1e-3, patience=5)
-        improvement_stopper = ImprovementStopper(min_improvement=1e-3, patience=5)
+        stopper = ChangeStopper(alpha=1e-3, patience=3)
+        improvement_stopper = ImprovementStopper(min_improvement=1e-3, patience=3)
 
         while not stopper.trigger() and not improvement_stopper.trigger():
             grad.zero_grad()
@@ -140,25 +144,29 @@ class Hard_Model(torch.nn.Module):
             grad.step()
             stopper.track_loss(loss)
             improvement_stopper.track_loss(loss)
+        print(f"Loss: {loss.item()}")
 
     def fit(self, verbose=False, return_loss=False):
         running_loss = []
+        
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
-            # zero optimizer gradient
-            self.optimizer.zero_grad()
-            # self.fit_grad(self.peak_position_optimizer)
-            # self.fit_grad(self.w_optimizer)
-            # self.fit_grad(self.all_peak_optimizer)
-            # self.fit_grad(self.w_optimizer)
+            if (self.improvement_stopper.trigger()):
+                print(self.improvement_stopper.trigger())
+            # # zero optimizer gradient
+            #self.optimizer.zero_grad()
 
+            # self.fit_grad(self.peak_position_optimizer)
+            self.fit_grad(self.w_optimizer)
+            self.fit_grad(self.mult_optimizer)
+            #self.fit_grad(self.optimizer)
             # # forward
             output = self.forward()
 
-
+            #loss calc
             loss = self.lossfn.forward(output)
             loss.backward()
-            # Update
-            self.optimizer.step()
+            # # Update
+            #self.optimizer.step()
     
             if self.scheduler != None:
                 self.scheduler.step(loss)
@@ -169,7 +177,8 @@ class Hard_Model(torch.nn.Module):
 
             # print loss
             if verbose:
-                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
+                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}")
+                # print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
 
         W = self.softplus(self.W).detach().numpy()
         C = self.C.detach().numpy()
@@ -198,8 +207,8 @@ if __name__ == "__main__":
     # target_labels = mat.get('yLabels')
     # axis = mat.get("Axis")
     X  = pd.read_csv("X_duplet.csv").to_numpy()
-    alpha = 1e-10
-    model = Hard_Model(X, 3, lr=10, alpha = alpha, factor=1, patience=5, min_imp=1e-3)
+    alpha = 1e-3
+    model = Hard_Model(X, 3, lr=10, alpha = alpha, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
     model.forward()
     C_ini = model.C.detach().numpy()
     for c in C_ini:
