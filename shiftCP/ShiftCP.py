@@ -41,7 +41,7 @@ def ShiftCP(X, noc, opts=None):
             print('Finding best solution nr {} of {}'.format(k + 1, InitRun))
             opts['InitRun'] = 0
             res = ShiftCP(X, noc, opts)
-            F_tmp.append(res[0])
+            F_tmp.append(res[0]) #error might be due to the script not being done
             T_tmp.append(res[1])
             nLogP_tmp.append(res[2][-1])
             varexpl.append(res[3])
@@ -104,8 +104,9 @@ def ShiftCP(X, noc, opts=None):
                 includeFreq[ind1:ind2, d] = False
         Sf[includeFreq.T == False] = 0
     t = time.process_time()
-    iter = 1
+    iter = 0
     n = np.setdiff1d(np.arange(1, nrmodes + 1), [1, 2])  # Impute missing values
+    # print(n)
 
     # Handle missing data and evaluate LS_error
     krprt = np.ones((1, noc))
@@ -118,7 +119,7 @@ def ShiftCP(X, noc, opts=None):
     X2 = matricizing(X, 2).T
     Xf = fft(X2, axis=1)
     Xf = Xf[:, :int(np.floor(Xf.shape[1] / 2)) + 1]
-    Xf = unmatricizing(Xf.T, 2, [N[0], Xf.shape[1], N[2:]])
+    Xf = unmatricizing(Xf.T, 0, [N[0], Xf.shape[1], *N[2:]]) #line 212 in matlab The 0 should be 1 in theory, but it returns the wrong shape
     LS_error = np.sum((X - Rec) ** 2)
     varexpl = (SST - LS_error) / SST
     NN = np.sum(N[constr != 2])
@@ -139,6 +140,65 @@ def ShiftCP(X, noc, opts=None):
     const = mgetopt(opts, 'const', 0)
     nLogP = [np.inf]  # 0.5 * LS_error / sigma_sq + 0.5 * np.sum(Lambda * (nrmFACT + 1e-6 * SST / (np.prod(N) - np.sum(miss_ind)))) - 0.5 * NN * np.sum(np.log(Lambda)) + const
     dnLogP = np.inf
+    
+    #line 236 in matlab
+    #Algorithm Display
+    if False:
+        print(' ')
+        print('Shifted CP Analysis')
+        if estWholeSamples:
+            print('Using only integer delays estimated by cross-spectra')
+        else:
+            print('Using non-integer delays estimated by Newton-Rhapson')
+        print('A {} component model will be fitted'.format(noc))
+        print(' ')
+        print('To stop algorithm press control C')
+        print(' ')
+        dheader = '{:<12s} | {:<12s} | {:<12s} | {:<12s} | {:<12s} | {:<12s} |'.format('Iteration', 'Expl. var.', 'Cost func.', 'd_cost/cost', ' Time(s)   ', ' Min step   ')
+        dline = '-------------+--------------+--------------+--------------+--------------+--------------+'
+        print(dline)
+        print(dheader)
+        print(dline)
+    
+    #main loop
+    while iter < maxiter and dnLogP >= abs(nLogP[iter]) * conv_crit:
+        if iter % 25 == 0 and False:
+            print(dline)
+            print(dheader)
+            print(dline)
+        nLogP_old = nLogP[iter]
+        iter += 1
+        told = t
+
+        # Project out mode 3:end to speed up algorithm
+        krprt = np.ones((1, noc))
+        krkrt = np.ones(noc)
+        for k in n-1:
+            krprt = krprod(FACT[k], krprt)
+            krkrt = krkrt * (FACT[k].T @ FACT[k])
+            
+        if nrmodes > 2:
+            print(list(range(2, nrmodes)))
+            # Xfp = (krprt.T @ matricizing(Xf, *list(range(2, nrmodes)))).T #here line 280 in matlab issue is with nrmodes, should return shape 10, 2570
+            matricized = matricizing(Xf, 1)
+            print(matricized.shape)
+            exit()
+            Xfp = (krprt.T @ matricized).T
+            
+            Xfp = unmatricizing(Xfp, 2, [Nf[0], Nf[1], noc])
+            Xtp = (krprt.T @ matricizing(X, list(range(2, nrmodes + 1)))).T
+            Xtp = unmatricizing(Xtp, 2, [N[0], N[1], noc])
+            krprtt = np.eye(noc)
+        else:
+            Xfp = Xf
+            Xtp = X
+            krprtt = np.ones(noc)
+        
+        if ARD:
+            nLogP.append(0.5 * LS_error / sigma_sq + 0.5 * np.sum(Lambda * (nrmFACT + 1e-6 * SST / (np.prod(N) - np.sum(miss_ind))) - 0.5 * NN * np.sum(np.log(Lambda)) + const))
+        else:
+            nLogP.append(0.5 * LS_error / sigma_sq)
+    
 
 def mgetopt(opts, key, default):
     if key in opts:
@@ -185,7 +245,6 @@ def reconstruct(A, Sf, Q, T, f, N):
 
         St = np.real(np.fft.ifft(Sft, axis=1))
         X[i, :, :] = np.matmul(St.T, krprod(A[i, :].reshape(1, -1), Q).T)
-
     return X
 
 
@@ -203,15 +262,13 @@ def matricizing(X, n):
 
 def unmatricizing(X, n, D):
     # Inverse function of matricizing
-    ind = np.arange(1, len(D)+1)
-    ind = np.setdiff1d(ind, n)
+    ind = list(range(len(D)))
+    del ind[n]
+    
     if n == 1:
-        perm = np.arange(1, len(D)+1)
+        perm = list(range(len(D)))
     else:
-        perm = np.concatenate((np.arange(2, n[0]+1), [1], np.arange(n[-1]+2, len(D)+1)))
-    return np.transpose(X.reshape(D[n-1], np.prod(D[ind-1])), perm-1)
+        perm = list(range(1, n)) + [0] + list(range(n+1, len(D)))
 
-if __name__ == "__main__":
-    import pandas as pd
-    X = pd.read_csv('X.csv').to_numpy()
-    ShiftCP(X, 5)
+    X = np.transpose(np.reshape(X, [D[i] for i in [n] + list(range(n)) + list(range(n+1, len(D)))]), perm)
+    return X
