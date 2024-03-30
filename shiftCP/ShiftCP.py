@@ -272,3 +272,50 @@ def unmatricizing(X, n, D):
 
     X = np.transpose(np.reshape(X, [D[i] for i in [n] + list(range(n)) + list(range(n+1, len(D)))]), perm)
     return X
+
+# def estTimeAutCor(Xf, A, Sf, krpr, krSf, krf, T, Nf, N, w, constr, TauW, Lambda):
+def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
+
+    noc = A.shape[1]
+    if N[1] % 2 == 0:
+        sSf = 2 * Nf[1] - 2
+    else:
+        sSf = 2 * Nf[1] - 1
+    t1 = np.random.permutation(A.shape[0])
+    t2 = np.random.permutation(noc)
+    for k in t1:
+        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(np.outer(T[k, :], krf))))
+        for d in t2:
+            if np.sum(TauW[d, :]) > 0:
+                Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
+                # Xft = np.squeeze(unmatricizing(Resfud, 1, [1, Nf[1], np.prod(Nf[2:])]))
+                Xft = Resfud
+                # if krpr.shape[0] == 1:
+                #     Xd = Xft
+                # else:
+                #     Xd = np.dot(krpr[:, d].T, Xft.T)
+                Xd = Xft
+                
+                C = Xd * np.conj(Sf[d, :])
+                if N[1] % 2 == 0:
+                    C = np.concatenate((C, np.conj(C[-2::-1])))
+                else:
+                    C = np.concatenate((C, np.conj(C[::-1])))
+                    
+                C = np.fft.ifft(C, axis=0)
+                C = C * TauW[d, :]
+                
+                ind = np.argmax(C)
+                                
+                # if constr:
+                #     ind = np.argmax(C)
+                # else:
+                #     ind = np.argmax(np.abs(C))
+                T[k, d] = ind - sSf - 1
+                A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
+                if abs(T[k, d]) > (sSf / 2):
+                    if T[k, d] > 0:
+                        T[k, d] = T[k, d] - sSf
+                    else:
+                        T[k, d] = T[k, d] + sSf
+                Resf = Resfud - A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
