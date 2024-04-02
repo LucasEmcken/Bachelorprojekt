@@ -1,8 +1,9 @@
 import torch
+import numpy as np
 from torch.optim import Adam, lr_scheduler
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 class ShiftNMF(torch.nn.Module):
@@ -99,29 +100,50 @@ class ShiftNMF(torch.nn.Module):
 
 if __name__ == "__main__":
     import pandas as pd
+    import matplotlib.pyplot as plt
+    from estTimeAutCor import estTimeAutCor
     
     X  = pd.read_csv("X.csv").to_numpy()
 
+    X = X[:, :5000]
+    print(X.shape)
+    
     alpha = 1e-5
 
     nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=25)
-    W, H, tau = nmf.fit(verbose=1, max_iter=5000)
-
-    fig, axs = plt.subplots(nmf.rank, 1)
-    for i in range(nmf.rank):
-        axs[i].plot(H[i,:])
+    W, H, tau = nmf.fit(verbose=1, max_iter=100)
     
-    plt.show()
-
-
-    plt.figure()
-    plt.imshow(W, aspect='auto')
-    plt.colorbar()
-    plt.title("W - The mixings")
+    # Xf = torch.fft.fft(torch.tensor(X))
+    # A = torch.tensor(W)
+    # Sf = torch.fft.fft(torch.tensor(H))
+    # krSf = torch.conj(Sf)
+    # krf = torch.arange(0, X.shape[1]) / X.shape[1]
+    # T = torch.tensor(tau)
+    # Nf = X.shape
+    # N = X.shape
+    # w = torch.ones(X.shape[1])
+    # TauW = torch.ones(3, 2)
+    # Lambda = torch.ones(3)
+    
+    Xf = np.fft.fft(X)
+    A = W
+    Sf = np.fft.fft(H)
+    krSf = np.conj(Sf)
+    krf = np.arange(0, X.shape[1]) / X.shape[1]
+    T = tau
+    Nf = X.shape
+    N = X.shape
+    w = np.ones(X.shape[1])
+    TauW = np.ones((3, X.shape[1]*2-1))
+    Lambda = np.ones(3)
+    
+    plt.imshow(tau)
     plt.show()
     
-    plt.figure()
-    plt.imshow(tau, aspect='auto')
-    plt.colorbar()
-    plt.title("Tau")
+    estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda)
+    print('done')
+    
+
+    
+    plt.imshow(T)
     plt.show()
