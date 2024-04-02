@@ -105,13 +105,13 @@ if __name__ == "__main__":
     
     X  = pd.read_csv("X.csv").to_numpy()
 
-    X = X[:, :5000]
+    X = X
     print(X.shape)
     
     alpha = 1e-5
 
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=25)
-    W, H, tau = nmf.fit(verbose=1, max_iter=100)
+    nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10000)
+    W, H, tau = nmf.fit(verbose=1, max_iter=500)
     
     # Xf = torch.fft.fft(torch.tensor(X))
     # A = torch.tensor(W)
@@ -137,13 +137,29 @@ if __name__ == "__main__":
     TauW = np.ones((3, X.shape[1]*2-1))
     Lambda = np.ones(3)
     
-    plt.imshow(tau)
-    plt.show()
+    
+    #make a figure with the original data plot, the reconstructed data, and the reconstructed plot with the time delays
+    # fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+    # ax[0].plot(X.T)
+    # ax[0].set_title('Original Data')
+    
+    # ax[1].plot(nmf.recon.detach().numpy().T)
+    # ax[1].set_title('Reconstructed Data')
+    
     
     estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda)
-    print('done')
+    # print('done')
     
-
+    nmf.tau_tilde = torch.nn.Parameter(torch.tensor(T), requires_grad=True)
+    nmf.tau = lambda: nmf.tau_tilde
     
-    plt.imshow(T)
-    plt.show()
+    nmf.fit(verbose=1, max_iter=500)
+    output = nmf.forward()
+    output = torch.fft.ifft(output)
+    # ax[2].plot(output.detach().numpy().T)
+    # ax[2].set_title('Reconstructed Data with Time Delays')
+    
+    
+    # plt.show()
+    # plt.imshow(T)
+    # plt.show()
