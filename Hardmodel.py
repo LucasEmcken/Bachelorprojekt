@@ -6,7 +6,7 @@ from helpers.losses import frobeniusLoss, VolLoss
 import scipy
 
 
-torch.manual_seed(0)
+torch.manual_seed(3)
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -38,8 +38,9 @@ class Hard_Model(torch.nn.Module):
         #self.means = torch.nn.Parameter(torch.tensor([(i+1/2)*n_col/rank for i in range(rank+1)], requires_grad=True,dtype=torch.double))
         # self.sigma = torch.nn.Parameter(torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)*200)
         # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
-
-        self.sigma = torch.nn.Parameter(torch.tensor([100,300,50], requires_grad=True,dtype=torch.float32))
+        
+        self.sigma = torch.nn.Parameter(torch.tensor([300,100,200], requires_grad=True,dtype=torch.float32))
+        # self.sigma = torch.nn.Parameter(torch.tensor([100,300,50], requires_grad=True,dtype=torch.float32))
         self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
         #self.multiplicity = torch.nn.Parameter(torch.randn(rank, 1, requires_grad=True))
 
@@ -70,7 +71,7 @@ class Hard_Model(torch.nn.Module):
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
-        self.w_optimizer = Adam([self.W], lr=lr)
+        self.w_optimizer = Adam([self.W, self.sigma], lr=lr)
         self.mult_optimizer  = Adam([self.multiplicity], lr=lr)
         
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
