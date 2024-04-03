@@ -14,23 +14,27 @@ def pascal(x):
 
 def lorentzian(x, mean, variance):
     return 1 / (np.pi * variance * (1 + ((x - mean) / variance) ** 2))
+def gauss(x, mean, variance):
+    return 1/(variance*np.sqrt(2*np.pi))*np.exp(-1/2*((x-mean)/variance)**2)
 
 def multiplet(x, mult, mean, sigma, spacing, type='lorentz'):
     triangle = pascal(mult)
     t_max = max(triangle)
     triangle = [t/t_max for t in triangle]
     y = np.zeros(len(x),dtype=float)
-    if type == 'lorentz':
-        if len(triangle)%2 == 0:
-            space = -1*len(triangle)/2*spacing+spacing/2
-        else:
-            space = -1*(len(triangle)-1)/2*spacing
 
-
-        for i,size in enumerate(triangle):
+    if len(triangle)%2 == 0:
+        space = -1*len(triangle)/2*spacing+spacing/2
+    else:
+        space = -1*(len(triangle)-1)/2*spacing
+    for i,size in enumerate(triangle):
+        if type == 'lorentz':
             y += lorentzian(x, mean+space, sigma)*size
-            space +=  spacing
+        else:
+            y += gauss(x, mean+space, sigma)*size
+        space +=  spacing
     return y
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     x = np.linspace(-100,100,1000)
