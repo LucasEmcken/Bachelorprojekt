@@ -29,7 +29,12 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
 
     Lambda: 1D NumPy array representing the regularization strength for each component.
     """
+    #reshape to (1, number_of_components)
+    Xf = np.expand_dims(Xf, axis=0)
+    A = np.expand_dims(A, axis=0)
+    T = np.expand_dims(T, axis=0)
     noc = A.shape[1]
+    # noc = 3
     if N[1] % 2 == 0:
         sSf = 2 * Nf[1] - 2
     else:
@@ -55,7 +60,7 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                 else:
                     C = np.concatenate((C, np.conj(C[::-1])))
                     
-                C = np.fft.ifft(C, axis=0)
+                C = np.fft.ifft(C, axis=0, n=10000)
                 C = C * TauW[d, :]
                 
                 ind = np.argmax(C)
@@ -73,6 +78,53 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                         T[k, d] = T[k, d] + sSf
                 Resf = Resfud - A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
 
+
+def mgetopt(opts, key, default):
+    if key in opts:
+        return opts[key]
+    else:
+        return default
+
+
+def generateTauWMatrix(TauW, N2):
+    TauWMatrix = np.zeros((TauW.shape[0], N2))
+
+    for d in range(TauW.shape[0]):
+        TauWMatrix[d, 0:int(TauW[d, 1])] = 1
+        TauWMatrix[d, -1:(-int(TauW[d, 0]) - 1):-1] = 1
+
+    return TauWMatrix
+
+def matricizing(X, n):
+    # Turn tensor to matrix along n'th mode
+    if n is None:
+        return X
+    else:
+        sX = np.array(X.shape)
+        N = X.ndim
+        n2 = np.setdiff1d(np.arange(1, N+1), n)
+        Y = np.reshape(np.transpose(X, axes=[n-1] + list(n2-1)), (np.prod(sX[n-1]), np.prod(sX[n2-1])))
+        return Y
+
+def unmatricizing(X, n, D):
+    # Inverse function of matricizing
+    ind = list(range(len(D)))
+    del ind[n]
+    
+    if n == 1:
+        perm = list(range(len(D)))
+    else:
+        perm = list(range(1, n)) + [0] + list(range(n+1, len(D)))
+
+    X = np.transpose(np.reshape(X, [D[i] for i in [n] + list(range(n)) + list(range(n+1, len(D)))]), perm)
+    return X
+
 if __name__ == "__main__":
     print("This is a module. Not intended to be run standalone.")
+    opts = None
+    noc = 3
+    N = X.shape
+    TauW = mgetopt(opts, 'TauW', np.column_stack((np.ones(noc) * -N[1] / 2, np.ones(noc) * N[1] / 2)))
+    TauWMatrix = generateTauWMatrix(TauW, N[1])
+    
     

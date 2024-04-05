@@ -29,7 +29,7 @@ class ShiftNMF(torch.nn.Module):
 
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
-        self.optimizer = Adam(self.parameters(), lr=lr)
+        self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
         if factor < 1:
@@ -101,17 +101,17 @@ class ShiftNMF(torch.nn.Module):
 if __name__ == "__main__":
     import pandas as pd
     import matplotlib.pyplot as plt
-    from estTimeAutCor import estTimeAutCor
+    from estTimeAutCor import *
     
     X  = pd.read_csv("X.csv").to_numpy()
 
     X = X
-    print(X.shape)
+    # print(X.shape)
     
     alpha = 1e-5
-
+    noc = 3
     nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=500)
+    W, H, tau = nmf.fit(verbose=1, max_iter=200)
     
     # Xf = torch.fft.fft(torch.tensor(X))
     # A = torch.tensor(W)
@@ -125,41 +125,71 @@ if __name__ == "__main__":
     # TauW = torch.ones(3, 2)
     # Lambda = torch.ones(3)
     
+    N = X.shape
     Xf = np.fft.fft(X)
+    Xf = Xf[:, :int(np.floor(Xf.shape[1] / 2)) + 1]
+    Xf = unmatricizing(Xf.T, 0, [N[0], Xf.shape[1], *N[2:]])
+    Nf = Xf.shape
+    
+    Xft = matricizing(X, 1)
+    
     A = W
     Sf = np.fft.fft(H)
     krSf = np.conj(Sf)
     krf = np.arange(0, X.shape[1]) / X.shape[1]
     T = tau
-    Nf = X.shape
-    N = X.shape
-    w = np.ones(X.shape[1])
-    TauW = np.ones((3, X.shape[1]*2-1))
+    w = np.ones(X.shape[1])*2
+    
+    # TauW = mgetopt({}, 'TauW', np.column_stack((np.ones((noc,1)) * -N[1] / 2, np.ones(noc) * N[1] / 2)))
+    # TauWMatrix = generateTauWMatrix(TauW, N[1])
+
+    TauW = np.ones((3, X.shape[1]))
+    # print(TauWMatrix)
+    # exit()
+    
+    SST = np.sum(X**2)
+    
+    #from matlab sigma_sq=SST/((1+10^(SNR/10))*(prod(N)-numel(miss_ind)));
+    
+    sigma_sq = SST / ((1 + 10**(10/10)) * np.prod(N) - X.shape[0]*X.shape[1])
+    
     Lambda = np.ones(3)
     
     
     #make a figure with the original data plot, the reconstructed data, and the reconstructed plot with the time delays
-    # fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    # ax[0].plot(X.T)
-    # ax[0].set_title('Original Data')
+    fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+    ax[0].plot(X.T)
+    ax[0].set_title('Original Data')
     
-    # ax[1].plot(nmf.recon.detach().numpy().T)
-    # ax[1].set_title('Reconstructed Data')
+    ax[1].plot(nmf.recon.detach().numpy().T)
+    ax[1].set_title('Reconstructed Data')
     
+    for m in range(Xf.shape[0]):
+        estTimeAutCor(
+            Xft[m,:],
+            A[m,:],
+            Sf, #Sf
+            #krprt
+            krSf, 
+            krf, #p.Sf
+            T[m,:], #p.f
+            Nf,
+            N,
+            w,
+            #constr
+            TauW,
+            sigma_sq*Lambda)
     
-    estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda)
-    # print('done')
-    
+
     nmf.tau_tilde = torch.nn.Parameter(torch.tensor(T), requires_grad=True)
     nmf.tau = lambda: nmf.tau_tilde
-    
+
     nmf.fit(verbose=1, max_iter=500)
     output = nmf.forward()
     output = torch.fft.ifft(output)
-    # ax[2].plot(output.detach().numpy().T)
-    # ax[2].set_title('Reconstructed Data with Time Delays')
-    
-    
-    # plt.show()
-    # plt.imshow(T)
-    # plt.show()
+    ax[2].plot(output.detach().numpy().T)
+    ax[2].set_title('Reconstructed Data with Time Delays')
+
+    plt.show()
+    plt.imshow(T)
+    plt.show()
