@@ -2,7 +2,11 @@
 **__pycache__/
 *.py[cod]
 *$py.class
+<<<<<<< Updated upstream:.gitignore
 
+=======
+*.pyc
+>>>>>>> Stashed changes:gitignore
 # C extensions
 *.so
 
