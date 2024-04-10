@@ -70,13 +70,17 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                 # else:
                 #     ind = np.argmax(np.abs(C))
                 T[k, d] = ind - sSf - 1
+                print(T[k, d])
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
                 if abs(T[k, d]) > (sSf / 2):
                     if T[k, d] > 0:
                         T[k, d] = T[k, d] - sSf
                     else:
                         T[k, d] = T[k, d] + sSf
-                Resf = Resfud - A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
+                mult = np.exp(T[k, d] * krf)
+                mult2 = krSf[d, :] * mult
+                Resf = Resfud - A[k, d] * mult2
+                # Resf = Resfud - A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
 
 
 def mgetopt(opts, key, default):
