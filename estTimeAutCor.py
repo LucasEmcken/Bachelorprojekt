@@ -1,6 +1,7 @@
 import numpy as np
 
-
+def estT(X,W,H):
+    
 
 def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
     """
