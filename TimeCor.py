@@ -10,34 +10,33 @@ import matlab
 
 def estT(X,W,H):
     my_estTimeAutCor = estTimeAutCor.initialize()
-
     N = [*X.shape,1]
     Xf = np.fft.fft(X)
-    #Xf = Xf[:,:int(np.floor(Xf.shape[1]/2))]
+    Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    #Nf[1] = 5001
     A = W
-    Sf = np.fft.fft(H)#[:,:Nf[1]]
+    noc = A.shape[1]
+    Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
     krSf = np.conj(Sf)
     krf = np.fft.fftfreq(Nf[1])
-    T = np.zeros((N[0],3))
+    Tau = np.zeros((N[0],noc))
     N = np.array(N)
-    w = np.ones(X.shape[1])
+    w = np.ones(Xf.shape[1])
     constr = False
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
-    TauW = np.ones((3, 1))*np.array([-800,800])
+    TauW = np.ones((noc, 1))*np.array([-800,800])
 
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(3)*100 #sigma_sq.real
+    Lambda = np.ones(noc)*10#*sigma_sq.real
     for i in range(N[0]):
-        T[i] = my_estTimeAutCor.estTimeAutCor(Xf[i],A[i],Sf,krpr,krSf,krf,T[i],Nf,N,w,constr,TauW,Lambda)
+        Tau[i] = my_estTimeAutCor.estTimeAutCor(Xf[i],A[i],Sf,krpr,krSf,krf,Tau[i],Nf,N,w,constr,TauW,Lambda)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
-    T = np.array(T,dtype=np.float64)/2
-    return T
+    Tau = np.array(Tau,dtype=np.float64)
+    return Tau
 
 
 if __name__ == "__main__":
@@ -86,19 +85,27 @@ if __name__ == "__main__":
     # Random gaussian shifts
     tau = np.random.randint(-shift, shift, size=(N, d))
 
-    mean = [100, 400, 800]
-    std = [10, 20, 7]
+    mean = [1500, 5000, 8500]
+    std = [30, 40, 50]
     t = np.arange(0, 10000, 1)
 
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
 
     X = shift_dataset(W, H, tau)
+    tau_est = estT(X,W,H)
 
-    T = estT(X,W,H)
     plt.subplot(1, 2, 1)
     plt.imshow(tau)
     plt.colorbar()
     plt.subplot(1, 2, 2)
-    plt.imshow(T)
+    plt.imshow(tau_est)
     plt.colorbar()
+    plt.show()
+
+
+    plt.subplot(2,1,1)
+    plt.plot(shift_dataset(W, H, tau).real.T)
+    plt.subplot(2,1,2)
+    plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
+
     plt.show()
