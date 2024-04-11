@@ -1,7 +1,7 @@
-import numpy as np
+import numpy as np 
+import matlab
 
-def estT(X,W,H):
-    
+import matplotlib.pyplot as plt
 
 def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
     """
@@ -32,10 +32,12 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
 
     Lambda: 1D NumPy array representing the regularization strength for each component.
     """
+
+    TauW = generateTauWMatrix(TauW,N[1])
     #reshape to (1, number_of_components)
     Xf = np.expand_dims(Xf, axis=0)
     A = np.expand_dims(A, axis=0)
-    T = np.expand_dims(T, axis=0)
+    #T = np.expand_dims(T, axis=1)
     noc = A.shape[1]
     # noc = 3
     if N[1] % 2 == 0:
@@ -45,10 +47,10 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
     t1 = np.random.permutation(A.shape[0])
     t2 = np.random.permutation(noc)
     for k in t1:
-        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(np.outer(T[k, :], krf))))
+        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(T[k].conj().T * krf)))
         for d in t2:
             if np.sum(TauW[d, :]) > 0:
-                Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
+                Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(T[d] * krf))
                 # Xft = np.squeeze(unmatricizing(Resfud, 1, [1, Nf[1], np.prod(Nf[2:])]))
                 Xft = Resfud
                 # if krpr.shape[0] == 1:
@@ -59,11 +61,10 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                 
                 C = Xd * np.conj(Sf[d, :])
                 if N[1] % 2 == 0:
-                    C = np.concatenate((C, np.conj(C[-2::-1])))
+                    C = np.concatenate((C, np.conj(C[-2:0:-1])))
                 else:
-                    C = np.concatenate((C, np.conj(C[::-1])))
-                    
-                C = np.fft.ifft(C, axis=0, n=10000)
+                    C = np.concatenate((C, np.conj(C[-1:0:-1])))
+                C = np.fft.ifft(C, axis=0)
                 C = C * TauW[d, :]
                 
                 ind = np.argmax(C)
@@ -72,22 +73,16 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                 #     ind = np.argmax(C)
                 # else:
                 #     ind = np.argmax(np.abs(C))
-                T[k, d] = ind - sSf - 1
+                T[d] = ind - sSf - 1
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
-                if abs(T[k, d]) > (sSf / 2):
-                    if T[k, d] > 0:
-                        T[k, d] = T[k, d] - sSf
+                if abs(T[d]) > (sSf / 2):
+                    if T[d] > 0:
+                        T[d] = T[d] - sSf
                     else:
-                        T[k, d] = T[k, d] + sSf
-                Resf = Resfud - A[k, d] * (krSf[d, :] * np.exp(T[k, d] * krf))
+                        T[d] = T[d] + sSf
+                Resf = Resfud - A[k,d] * (krSf[d, :] * np.exp(T[d] * krf))
     return T
 
-
-def mgetopt(opts, key, default):
-    if key in opts:
-        return opts[key]
-    else:
-        return default
 
 
 def generateTauWMatrix(TauW, N2):
@@ -95,40 +90,100 @@ def generateTauWMatrix(TauW, N2):
 
     for d in range(TauW.shape[0]):
         TauWMatrix[d, 0:int(TauW[d, 1])] = 1
-        TauWMatrix[d, -1:(-int(TauW[d, 0]) - 1):-1] = 1
+        TauWMatrix[d, N2+int(TauW[d, 0]):N2] = 1
 
     return TauWMatrix
 
-def matricizing(X, n):
-    # Turn tensor to matrix along n'th mode
-    if n is None:
-        return X
-    else:
-        sX = np.array(X.shape)
-        N = X.ndim
-        n2 = np.setdiff1d(np.arange(1, N+1), n)
-        Y = np.reshape(np.transpose(X, axes=[n-1] + list(n2-1)), (np.prod(sX[n-1]), np.prod(sX[n2-1])))
-        return Y
 
-def unmatricizing(X, n, D):
-    # Inverse function of matricizing
-    ind = list(range(len(D)))
-    del ind[n]
-    
-    if n == 1:
-        perm = list(range(len(D)))
-    else:
-        perm = list(range(1, n)) + [0] + list(range(n+1, len(D)))
 
-    X = np.transpose(np.reshape(X, [D[i] for i in [n] + list(range(n)) + list(range(n+1, len(D)))]), perm)
-    return X
+def estT(X,W,H):
+    N = [*X.shape,1]
+    Xf = np.fft.fft(X)
+    Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
+    Nf = np.array(Xf.shape)
+    A = np.copy(W)
+    noc = A.shape[1]
+    Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
+    krpr = np.array([0,0,0])
+    krSf = np.conj(Sf)
+    krf = np.fft.fftfreq(Nf[1])
+    T = np.zeros((N[0],noc))
+    N = np.array(N)
+    w = np.ones(Xf.shape[1])
+    constr = False
+    #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
+    TauW = np.ones((noc, 1))*np.array([-800,800])
+    SST = np.sum(X**2)
+    sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
+    Lambda = np.ones(noc)*10#*sigma_sq.real
+    for i in range(N[0]):
+        T[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,T[i],Nf,N,w,TauW,Lambda)
+    #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
+    #my_shiftCP.terminate()
+
+    T = np.array(T,dtype=np.float64)
+    return T
+
 
 if __name__ == "__main__":
-    print("This is a module. Not intended to be run standalone.")
-    opts = None
-    noc = 3
-    N = X.shape
-    TauW = mgetopt(opts, 'TauW', np.column_stack((np.ones(noc) * -N[1] / 2, np.ones(noc) * N[1] / 2)))
-    TauWMatrix = generateTauWMatrix(TauW, N[1])
+    np.random.seed(45)
+    def shift_dataset(W, H, tau):
+        # Get half the frequencies
+        Nf = H.shape[1] // 2 + 1
+        # Fourier transform of S along the second dimension
+        Hf = np.fft.fft(H, axis=1)
+        # Keep only the first Nf[1] elements of the Fourier transform of S
+        Hf = Hf[:, :Nf]
+        # Construct the shifted Fourier transform of S
+        Hf_reverse = np.fliplr(Hf[:, 1:Nf - 1])
+        # Concatenate the original columns with the reversed columns along the second dimension
+        Hft = np.concatenate((Hf, np.conj(Hf_reverse)), axis=1)
+        f = np.arange(0, M) / M
+        omega = np.exp(-1j * 2 * np.pi * np.einsum('Nd,M->NdM', tau, f))
+        Wf = np.einsum('Nd,NdM->NdM', W, omega)
+        # Broadcast Wf and H together
+        Vf = np.einsum('NdM,dM->NM', Wf, Hft)
+        V = np.fft.ifft(Vf)
+        return V
+
+    N, M, d = 5, 10000, 3
+    Fs = 1000  # The sampling frequency we use for the simulation
+    t0 = 10    # The half-time interval we look at
+    t = np.arange(-t0, t0, 1/Fs)  # the time samples
+    f = np.arange(-Fs/2, Fs/2, Fs/len(t))  # the corresponding frequency samples
+
+    def gauss(mu, s, time):
+        return 1/(s*np.sqrt(2*np.pi))*np.exp(-1/2*((time-mu)/s)**2)
+
+    W = np.random.dirichlet(np.ones(d), N)
+
+    shift = 400
+    # Random gaussian shifts
+    tau = np.random.randint(-shift, shift, size=(N, d))
+
+    mean = [1500, 5000, 8500]
+    std = [30, 40, 50]
+    t = np.arange(0, 10000, 1)
+
+    H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
+
+    X = shift_dataset(W, H, tau)
     
+    tau_est = estT(X,W,H)
+    
+    plt.subplot(1, 2, 1)
+    plt.imshow(tau)
+    plt.colorbar()
+    plt.subplot(1, 2, 2)
+    plt.imshow(tau_est)
+    plt.colorbar()
+    plt.show()
+
+
+    plt.subplot(2,1,1)
+    plt.plot(shift_dataset(W, H, tau).real.T)
+    plt.subplot(2,1,2)
+    plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
+
+    plt.show()
     
