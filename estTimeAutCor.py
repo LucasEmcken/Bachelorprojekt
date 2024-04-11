@@ -3,7 +3,7 @@ import matlab
 
 import matplotlib.pyplot as plt
 
-def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
+def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
     """
 
     Args:
@@ -47,10 +47,10 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
     t1 = np.random.permutation(A.shape[0])
     t2 = np.random.permutation(noc)
     for k in t1:
-        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(T[k].conj().T * krf)))
+        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(Tau[k].conj().T * krf)))
         for d in t2:
             if np.sum(TauW[d, :]) > 0:
-                Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(T[d] * krf))
+                Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(Tau[d] * krf))
                 # Xft = np.squeeze(unmatricizing(Resfud, 1, [1, Nf[1], np.prod(Nf[2:])]))
                 Xft = Resfud
                 # if krpr.shape[0] == 1:
@@ -73,15 +73,15 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, T, Nf, N, w, TauW, Lambda):
                 #     ind = np.argmax(C)
                 # else:
                 #     ind = np.argmax(np.abs(C))
-                T[d] = ind - sSf - 1
+                Tau[d] = ind - sSf - 1
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
-                if abs(T[d]) > (sSf / 2):
-                    if T[d] > 0:
-                        T[d] = T[d] - sSf
+                if abs(Tau[d]) > (sSf / 2):
+                    if Tau[d] > 0:
+                        Tau[d] = Tau[d] - sSf
                     else:
-                        T[d] = T[d] + sSf
-                Resf = Resfud - A[k,d] * (krSf[d, :] * np.exp(T[d] * krf))
-    return T
+                        Tau[d] = Tau[d] + sSf
+                Resf = Resfud - A[k,d] * (krSf[d, :] * np.exp(Tau[d] * krf))
+    return Tau
 
 
 
