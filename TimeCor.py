@@ -1,10 +1,9 @@
 import numpy as np 
-import matlab
 
 import matplotlib.pyplot as plt
 
 
-import ShiftCPM
+# import ShiftCPM
 import estTimeAutCor
 import matlab
 
@@ -18,20 +17,20 @@ def estT(X,W,H):
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
-    krSf = np.conj(Sf)
+    # krSf = np.conj(Sf)
+    krSf = Sf
     krf = np.fft.fftfreq(Nf[1])
     Tau = np.zeros((N[0],noc))
     N = np.array(N)
     w = np.ones(Xf.shape[1])
     constr = False
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
-    TauW = np.ones((noc, 1))*np.array([-800,800])
+    TauW = np.ones((noc, 1))*np.array([-400,400])
 
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(noc)*10#*sigma_sq.real
-    for i in range(N[0]):
-        Tau[i] = my_estTimeAutCor.estTimeAutCor(Xf[i],A[i],Sf,krpr,krSf,krf,Tau[i],Nf,N,w,constr,TauW,Lambda)
+    Lambda = np.ones(noc)*1#*sigma_sq.real
+    Tau = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
@@ -81,7 +80,7 @@ if __name__ == "__main__":
 
     W = np.random.dirichlet(np.ones(d), N)
 
-    shift = 400
+    shift = 200
     # Random gaussian shifts
     tau = np.random.randint(-shift, shift, size=(N, d))
 
@@ -98,14 +97,17 @@ if __name__ == "__main__":
     plt.imshow(tau)
     plt.colorbar()
     plt.subplot(1, 2, 2)
-    plt.imshow(tau_est)
+    plt.imshow(np.array(tau_est).real)
     plt.colorbar()
     plt.show()
 
 
     plt.subplot(2,1,1)
     plt.plot(shift_dataset(W, H, tau).real.T)
+    # plt.subplot(2,1,2)
+    # plt.plot(np.dot(W, H).real.T)
     plt.subplot(2,1,2)
     plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
+
 
     plt.show()
