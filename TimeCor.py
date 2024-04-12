@@ -31,15 +31,14 @@ def estT(X,W,H):
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-400,400])
 
-    SST = np.sum(X**2)
-    sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
     Lambda = np.ones(noc)*0#*sigma_sq.real
     Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
-    Tau = np.array(Tau,dtype=np.complex128)
-    return Tau
+    Tau = np.array(Tau,dtype=np.double)
+    A = np.array(A, dtype=np.double)
+    return Tau, A
 
 
 if __name__ == "__main__":
