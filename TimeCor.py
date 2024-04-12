@@ -34,7 +34,7 @@ def estT(X,W,H):
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
     Lambda = np.ones(noc)*0#*sigma_sq.real
-    Tau = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda)
+    Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     tau = np.random.randint(-shift, shift, size=(N, d))
 
     mean = [1500, 5000, 8500]
-    std = [30, 40, 50]
+    std = [300, 250, 200]
     t = np.arange(0, 10000, 1)
 
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
