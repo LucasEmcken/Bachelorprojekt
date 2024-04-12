@@ -30,9 +30,9 @@ class ShiftNMF(torch.nn.Module):
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True)*0)
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True))
-        self.tau = torch.zeros(self.N, self.rank)
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double)*0)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
+        self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
 
@@ -63,12 +63,18 @@ class ShiftNMF(torch.nn.Module):
         # Broadcast Wf and H together
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
+    def fit_tau(self):
+        X = np.array(self.X.detach().numpy(), dtype=np.complex128)
+        W = np.array(self.W.detach().numpy(), dtype=np.complex128)
+        H = np.array(self.H.detach().numpy(), dtype=np.complex128)
+        T = estT(X,W,H)
+        self.tau = torch.tensor(T, dtype=torch.cdouble)
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=0):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
-        while not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
+        while self.iters < max_iter:#not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
             self.iters += 1
             # zero optimizer gradient
             self.optimizer.zero_grad()
@@ -113,106 +119,15 @@ class ShiftNMF(torch.nn.Module):
 if __name__ == "__main__":
     import pandas as pd
     import matplotlib.pyplot as plt
-    from estTimeAutCor import *
+    from TimeCor import *
     
     X  = pd.read_csv("X.csv").to_numpy()
 
-    X = X
-    # print(X.shape)
+
     
     alpha = 1e-5
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=200)
-    
-    # Xf = torch.fft.fft(torch.tensor(X))
-    # A = torch.tensor(W)
-    # Sf = torch.fft.fft(torch.tensor(H))
-    # krSf = torch.conj(Sf)
-    # krf = torch.arange(0, X.shape[1]) / X.shape[1]
-    # T = torch.tensor(tau)
-    # Nf = X.shape
-    # N = X.shape
-    # w = torch.ones(X.shape[1])
-    # TauW = torch.ones(3, 2)
-    # Lambda = torch.ones(3)
-    
-    N = X.shape
-    Xf = np.fft.fft(X)
-    Xf = Xf[:, :int(np.floor(Xf.shape[1] / 2)) + 1]
-    Xf = unmatricizing(Xf.T, 0, [N[0], Xf.shape[1], *N[2:]])
-    Nf = Xf.shape
-    
-    Xft = matricizing(X, 1)
-    
-    A = W
-    Sf = np.fft.fft(H)
-    krSf = np.conj(Sf)
-    krf = np.arange(0, X.shape[1]) / X.shape[1]
-    T = tau
-    w = np.ones(X.shape[1])*2
-    
-    # TauW = mgetopt({}, 'TauW', np.column_stack((np.ones((noc,1)) * -N[1] / 2, np.ones(noc) * N[1] / 2)))
-    # TauWMatrix = generateTauWMatrix(TauW, N[1])
-
-    TauW = np.ones((3, X.shape[1]))
-    # print(TauWMatrix)
-    # exit()
-    
-    SST = np.sum(X**2)
-    
-    #from matlab sigma_sq=SST/((1+10^(SNR/10))*(prod(N)-numel(miss_ind)));
-    
-    sigma_sq = SST / ((1 + 10**(10/10)) * np.prod(N) - X.shape[0]*X.shape[1])
-    
-    Lambda = np.ones(3)
-    
-    
-    #make a figure with the original data plot, the reconstructed data, and the reconstructed plot with the time delays
-    fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    ax[0].plot(X.T)
-    ax[0].set_title('Original Data')
-    fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    ax[0].plot(X.T)
-    ax[0].set_title('Original Data')
-    
-    # print('done')
-    
-    
-    #nmf.fit(verbose=1, max_iter=500)
-
-    ax[1].plot(nmf.H.detach().numpy().T)
-    ax[1].set_title('Found Components')
-
-    ax[1].plot(nmf.recon.detach().numpy().T)
-    ax[1].set_title('Reconstructed Data')
-    
-    for m in range(Xf.shape[0]):
-        estTimeAutCor(
-            Xft[m,:],
-            A[m,:],
-            Sf, #Sf
-            #krprt
-            krSf, 
-            krf, #p.Sf
-            T[m,:], #p.f
-            Nf,
-            N,
-            w,
-            #constr
-            TauW,
-            sigma_sq*Lambda)
-    
-
-    nmf.tau_tilde = torch.nn.Parameter(torch.tensor(T), requires_grad=True)
-    nmf.tau = lambda: nmf.tau_tilde
-
-    nmf.fit(verbose=1, max_iter=500)
-    output = nmf.forward()
-    output = torch.fft.ifft(output)
-    ax[2].plot(output.detach().numpy().T)
-    ax[2].set_title('Reconstructed Data with Time Delays')
-
-    plt.show()
-    plt.imshow(T)
+    W, H, tau = nmf.fit(verbose=1, max_iter=1000)
+    plt.plot(H.T)
     plt.show()
