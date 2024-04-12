@@ -35,7 +35,7 @@ def estT(X,W,H):
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
-    Tau = np.array(Tau,dtype=np.float64)
+    Tau = np.array(Tau,dtype=np.complex128)
     return Tau
 
 

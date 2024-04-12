@@ -101,13 +101,13 @@ def estT(X,W,H):
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    A = np.copy(W)
+    A = np.array(np.copy(W), dtype = np.complex128)
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
     krSf = np.conj(Sf)
     krf = np.fft.fftfreq(Nf[1])
-    T = np.zeros((N[0],noc))
+    Tau = np.zeros((N[0],noc))
     N = np.array(N)
     w = np.ones(Xf.shape[1])
     constr = False
@@ -117,12 +117,10 @@ def estT(X,W,H):
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
     Lambda = np.ones(noc)*10#*sigma_sq.real
     for i in range(N[0]):
-        T[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,T[i],Nf,N,w,TauW,Lambda)
-    #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
-    #my_shiftCP.terminate()
+        Tau[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
 
-    T = np.array(T,dtype=np.float64)
-    return T
+    Tau = np.array(Tau,dtype=np.float64)
+    return Tau
 
 
 if __name__ == "__main__":
