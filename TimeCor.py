@@ -17,19 +17,23 @@ def estT(X,W,H):
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
-    # krSf = np.conj(Sf)
+    #krSf = np.conj(Sf)
     krSf = Sf
-    krf = np.fft.fftfreq(Nf[1])
+    krf = (-1j*2*np.pi * np.arange(0,N[1])/N[1])[:Nf[1]]
+
     Tau = np.zeros((N[0],noc))
     N = np.array(N)
-    w = np.ones(Xf.shape[1])
-    constr = False
+    w = np.ones(Xf.shape[1])*2
+    w[0] = 1
+    if len(W)%2 == 1:
+        w[-1] = 1
+    constr = True
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-400,400])
 
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(noc)*1#*sigma_sq.real
+    Lambda = np.ones(noc)*0#*sigma_sq.real
     Tau = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
