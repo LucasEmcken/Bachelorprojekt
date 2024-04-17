@@ -7,19 +7,22 @@ import matplotlib.pyplot as plt
 import estTimeAutCor
 import matlab
 
-def estT(X,W,H):
-    my_estTimeAutCor = estTimeAutCor.initialize()
+def estT(X,W,H, my_estTimeAutCor=0):
+    if my_estTimeAutCor == 0:
+        my_estTimeAutCor = estTimeAutCor.initialize()
     N = [*X.shape,1]
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    A = W
+    A = np.copy(W)
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
     #krSf = np.conj(Sf)
     krSf = Sf
     krf = (-1j*2*np.pi * np.arange(0,N[1])/N[1])[:Nf[1]]
+    # krprt = np.ones((1,noc))
+    # krprt = np.cross(H,krprt)
 
     Tau = np.zeros((N[0],noc))
     N = np.array(N)
@@ -32,7 +35,9 @@ def estT(X,W,H):
     TauW = np.ones((noc, 1))*np.array([-400,400])
 
     Lambda = np.ones(noc)*0#*sigma_sq.real
-    Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
+    for i in range(Xf.shape[0]):
+        Tau[i], A[i] = my_estTimeAutCor.estTimeAutCor(Xf[i],A[i],Sf,krpr,krSf,krf,Tau[i],Nf,N,w,constr,TauW,Lambda, nargout=2)
+    #Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
@@ -94,8 +99,8 @@ if __name__ == "__main__":
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
 
     X = shift_dataset(W, H, tau)
-    tau_est = estT(X,W,H)
-
+    tau_est, A = estT(X,W,H)
+    #W = A
     plt.subplot(1, 2, 1)
     plt.imshow(tau)
     plt.colorbar()
@@ -104,13 +109,10 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.show()
 
-
     plt.subplot(2,1,1)
     plt.plot(shift_dataset(W, H, tau).real.T)
-    # plt.subplot(2,1,2)
-    # plt.plot(np.dot(W, H).real.T)
     plt.subplot(2,1,2)
-    plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
-
-
+    plt.plot(np.dot(W, H).real.T)
+    plt.subplot(2,1,2)
+    plt.plot(shift_dataset(A, H, tau-tau_est).real.T)
     plt.show()
