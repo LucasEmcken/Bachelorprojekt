@@ -5,8 +5,6 @@ from TimeCor import estT
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
 from torchrl.modules.utils import inv_softplus
-import estTimeAutCor
-import matlab
 # import matplotlib.pyplot as plt
 
 def generateTauWMatrix(TauW, N2):
@@ -21,8 +19,6 @@ def generateTauWMatrix(TauW, N2):
 class ShiftNMF(torch.nn.Module):
     def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.9, min_imp=1e-6):
         super().__init__()
-
-        self.my_estTimeAutCor = estTimeAutCor.initialize()
 
         self.rank = rank
         self.X = torch.tensor(X)
@@ -54,9 +50,6 @@ class ShiftNMF(torch.nn.Module):
         else:
             self.scheduler = None
 
-        
-        
-
     def forward(self):
         # Get half of the frequencies
         Nf = self.M // 2 + 1
@@ -77,13 +70,18 @@ class ShiftNMF(torch.nn.Module):
     
     def fit_tau(self):
         X = np.array(self.X.detach().numpy(), dtype=np.complex128)
-        W = np.array(self.W.detach().numpy(), dtype=np.complex128)
-        H = np.array(self.H.detach().numpy(), dtype=np.complex128)
-        T, A = estT(X,W,H, self.my_estTimeAutCor)
-        self.tau = torch.tensor(T, dtype=torch.double)
-        self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
+        W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
+        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
+        T, A = estT(X,W,H)
+        self.tau = torch.tensor(T, dtype=torch.cdouble)
+        
+        #center tau
+        # self.tau = self.tau - torch.mean(self.tau, dim=, keepdim=True)
+        # print(A.shape)
+        # A = inv_softplus(A)
+        # self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
 
-    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=0):
+    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
@@ -135,50 +133,11 @@ class ShiftNMF(torch.nn.Module):
             return W, H, tau
 
 if __name__ == "__main__":
-    np.random.seed(45)
+    import pandas as pd
     import matplotlib.pyplot as plt
-    def shift_dataset(W, H, tau):
-        # Get half the frequencies
-        Nf = H.shape[1] // 2 + 1
-        # Fourier transform of S along the second dimension
-        Hf = np.fft.fft(H, axis=1)
-        # Keep only the first Nf[1] elements of the Fourier transform of S
-        Hf = Hf[:, :Nf]
-        # Construct the shifted Fourier transform of S
-        Hf_reverse = np.fliplr(Hf[:, 1:Nf - 1])
-        # Concatenate the original columns with the reversed columns along the second dimension
-        Hft = np.concatenate((Hf, np.conj(Hf_reverse)), axis=1)
-        f = np.arange(0, M) / M
-        omega = np.exp(-1j * 2 * np.pi * np.einsum('Nd,M->NdM', tau, f))
-        Wf = np.einsum('Nd,NdM->NdM', W, omega)
-        # Broadcast Wf and H together
-        Vf = np.einsum('NdM,dM->NM', Wf, Hft)
-        V = np.fft.ifft(Vf)
-        return V
-
-    N, M, d = 5, 10000, 3
-    Fs = 1000  # The sampling frequency we use for the simulation
-    t0 = 10    # The half-time interval we look at
-    t = np.arange(-t0, t0, 1/Fs)  # the time samples
-    f = np.arange(-Fs/2, Fs/2, Fs/len(t))  # the corresponding frequency samples
-
-    def gauss(mu, s, time):
-        return 1/(s*np.sqrt(2*np.pi))*np.exp(-1/2*((time-mu)/s)**2)
-
-    W = np.random.dirichlet(np.ones(d), N)
-    # W = np.append(W,[[1,0,0],[0,1,0],[0,0,1]],axis=0)
-    # N = N+3
-    shift = 400
-    # Random gaussian shifts
-    tau = np.random.randint(-shift, shift, size=(N, d))
-
-    mean = [1500, 5000, 8500]
-    std = [30, 40, 50]
-    t = np.arange(0, 10000, 1)
-
-    H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
-
-    X = shift_dataset(W, H, tau)
+    from TimeCor import *
+    
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
 
     X = np.pad(X, ((0, 0), (1000, 1000)), 'edge')
     
@@ -188,8 +147,8 @@ if __name__ == "__main__":
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=1, alpha = alpha, factor=0.1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=2000)
+    nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
+    W, H, tau = nmf.fit(verbose=1, max_iter=500, tau_iter=250)
     plt.plot(H.T)
     plt.show()
     
