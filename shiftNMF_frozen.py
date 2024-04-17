@@ -4,6 +4,7 @@ from torch.optim import Adam, lr_scheduler
 from TimeCor import estT
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
+from torchrl.modules.utils import inv_softplus
 # import matplotlib.pyplot as plt
 
 def generateTauWMatrix(TauW, N2):
@@ -27,18 +28,20 @@ class ShiftNMF(torch.nn.Module):
         self.N, self.M = X.shape
 
         self.softplus = torch.nn.Softplus()
+        self.inv_softplus = inv_softplus(bias=1)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double)*0)
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double)*1)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.1)
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
 
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
-        self.optimizer = Adam([self.W, self.H], lr=lr)
+        # self.optimizer = Adam([self.H], lr=lr)
+        # self.optimizer = Adam([self.W], lr=lr)
         self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
@@ -60,17 +63,24 @@ class ShiftNMF(torch.nn.Module):
         f = torch.arange(0, self.M) / self.M
         omega = torch.exp(-1j * 2 * torch.pi * torch.einsum('Nd,M->NdM', self.tau, f))
         Wf = torch.einsum('Nd,NdM->NdM', self.softplus(self.W), omega)
+        # Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
         # Broadcast Wf and H together
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
+    
     def fit_tau(self):
         X = np.array(self.X.detach().numpy(), dtype=np.complex128)
-        W = np.array(self.W.detach().numpy(), dtype=np.complex128)
-        H = np.array(self.H.detach().numpy(), dtype=np.complex128)
-        T = estT(X,W,H)
+        W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
+        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
+        T, A = estT(X,W,H)
         self.tau = torch.tensor(T, dtype=torch.cdouble)
+        
+        #center tau
+        # print(A.shape)
+        # A = inv_softplus(A)
+        # self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
 
-    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=0):
+    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
@@ -90,7 +100,12 @@ class ShiftNMF(torch.nn.Module):
             # Update W and H
             self.optimizer.step()
 
-            if (self.iters%20) == 0:
+            if (self.iters%20) == 0 and self.iters > tau_iter:
+                # plt.plot(np.dot(self.softplus(self.W).detach().numpy(), self.softplus(self.H).detach().numpy()).T)
+                # plt.plot(torch.fft.ifft(output)[0].detach().numpy())
+                # plt.plot(self.X.detach().numpy()[0])
+                # plt.show()
+                # exit()
                 self.fit_tau()
 
             if self.scheduler != None:
@@ -121,13 +136,25 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from TimeCor import *
     
-    X  = pd.read_csv("X.csv").to_numpy()
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
 
-
+    X = np.pad(X, ((0, 0), (1000, 1000)), 'edge')
+    
+    # plt.plot(X.T)
+    # plt.show()
+    # exit()
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=1000)
+    nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
+    W, H, tau = nmf.fit(verbose=1, max_iter=500, tau_iter=250)
     plt.plot(H.T)
+    plt.show()
+    
+    fig, ax = plt.subplots(1, 2)
+    ax[0].plot(X.T)
+    ax[1].plot(nmf.recon.detach().numpy().T)
+    plt.show()
+    
+    plt.imshow(tau.real)
     plt.show()
