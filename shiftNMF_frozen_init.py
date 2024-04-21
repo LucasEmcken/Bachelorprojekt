@@ -6,6 +6,7 @@ from estTimeAutCor import estT
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
 from torchrl.modules.utils import inv_softplus
+from helpers.initializers import PCA_init
 # import matplotlib.pyplot as plt
 
 def generateTauWMatrix(TauW, N2):
@@ -34,16 +35,32 @@ class ShiftNMF(torch.nn.Module):
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double)*0)
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*np.std(X))
+        #self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*np.std(X))
+        self.H = torch.nn.Parameter(torch.tensor(PCA_init(X.T, rank).T, dtype=torch.double))
+        self.H = torch.nn.Parameter(inv_softplus(self.H))
+#        plt.plot(self.H.detach().numpy().T)
+#        plt.show()
+
+    #    print(self.H.shape)
+        #exit()
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
 
+        self.fit_tau()
+        
+        fig, ax = plt.subplots(2, 1)
+        ax[0].plot(torch.fft.ifft(self.forward()).detach().numpy().T)
+        ax[1].plot(X.T)
+        plt.show()
+        exit()
+        
+        
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
-        # self.optimizer = Adam([self.H], lr=lr)
-        # self.optimizer = Adam([self.W], lr=lr)
-        self.optimizer = Adam([self.W, self.H], lr=lr)
+        self.optimizer = Adam([self.H], lr=lr)
+        #self.optimizer = Adam([self.W], lr=lr)
+        #self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
         if factor < 1:
@@ -79,7 +96,7 @@ class ShiftNMF(torch.nn.Module):
         W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
-        # self.W = torch.nn.Parameter(W)
+        self.W = torch.nn.Parameter(W)
         # self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
@@ -145,13 +162,18 @@ if __name__ == "__main__":
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
     W, H, tau = nmf.fit(verbose=1, max_iter=100, tau_iter=0)
+    print("")
     
-    fig, ax = plt.subplots(1, 2)
-    ax[0].plot(H.T)
     
-    ax[1].plot(inv_softplus(H).T)
-    
+    plt.plot(H.T)
     plt.show()
+    
+    #fig, ax = plt.subplots(1, 2)
+    #ax[0].plot(H.T)
+    #
+    #ax[1].plot(inv_softplus(H).T)
+    #
+    #plt.show()
     
     # fig, ax = plt.subplots(1, 2)
     # ax[0].plot(X.T)

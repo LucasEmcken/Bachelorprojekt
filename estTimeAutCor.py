@@ -1,38 +1,8 @@
 import numpy as np 
-import matlab
 
 import matplotlib.pyplot as plt
 
 def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
-    """
-
-    Args:
-    Xf: 2D NumPy array representing the Fourier-transformed data of shape (number_of_samples, frequency_bins).
-    It contains the Fourier-transformed data.
-
-    A: 2D NumPy array representing the factor loadings of shape (number_of_samples, number_of_components).
-    It contains the factor loadings.
-
-    Sf: 2D NumPy array representing the Fourier-transformed shift component of shape (number_of_components, frequency_bins).
-    It contains the Fourier-transformed shift component.
-
-    krSf: 2D NumPy array representing the complex conjugate of the Fourier-transformed shift component of shape (number_of_components, frequency_bins).
-
-    krf: 1D NumPy array representing the frequency values.
-
-    T: 2D NumPy array representing the estimated time delays of shape (number_of_samples, number_of_components).
-
-    Nf: 1D NumPy array representing the size of each dimension of the Fourier-transformed data.
-
-    N: 1D NumPy array representing the size of each dimension of the original data.
-
-    w: 1D NumPy array representing the windowing function.
-
-    TauW: 2D NumPy array representing the shift constraints of the extracted components of shape (number_of_components, 2).
-
-    Lambda: 1D NumPy array representing the regularization strength for each component.
-    """
-
     TauW = generateTauWMatrix(TauW,N[1])
     #reshape to (1, number_of_components)
     Xf = np.expand_dims(Xf, axis=0)
@@ -53,10 +23,6 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                 Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(Tau[d] * krf))
                 # Xft = np.squeeze(unmatricizing(Resfud, 1, [1, Nf[1], np.prod(Nf[2:])]))
                 Xft = Resfud
-                # if krpr.shape[0] == 1:
-                #     Xd = Xft
-                # else:
-                #     Xd = np.dot(krpr[:, d].T, Xft.T)
                 Xd = Xft
                 
                 C = Xd * np.conj(Sf[d, :])
@@ -68,11 +34,7 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                 C = C * TauW[d, :]
                 
                 ind = np.argmax(C)
-                                
-                # if constr:
-                #     ind = np.argmax(C)
-                # else:
-                #     ind = np.argmax(np.abs(C))
+                    
                 Tau[d] = ind - sSf - 1
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
                 if abs(Tau[d]) > (sSf / 2):
@@ -81,7 +43,7 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                     else:
                         Tau[d] = Tau[d] + sSf
                 Resf = Resfud - A[k,d] * (krSf[d, :] * np.exp(Tau[d] * krf))
-    return Tau
+    return Tau, A
 
 
 
@@ -101,24 +63,25 @@ def estT(X,W,H):
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    A = np.array(np.copy(W), dtype = np.complex128)
+    # A = np.array(np.copy(W), dtype = np.complex128)
+    A = W
+    # A = np.ones(shape=(W.shape[0],W.shape[1]),dtype=np.complex128)
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
-    krpr = np.array([0,0,0])
     krSf = np.conj(Sf)
-    krf = np.fft.fftfreq(Nf[1])
+    krf = (-1j*2*np.pi * np.arange(0,N[1])/N[1])[:Nf[1]]
     Tau = np.zeros((N[0],noc))
     N = np.array(N)
     w = np.ones(Xf.shape[1])
-    constr = False
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-800,800])
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(noc)*10#*sigma_sq.real
+    Lambda = np.ones(noc)*10**2#*sigma_sq.real
     for i in range(N[0]):
-        Tau[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
+        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
 
+    
     Tau = np.array(Tau,dtype=np.float64)
     return Tau
 
@@ -166,8 +129,9 @@ if __name__ == "__main__":
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
 
     X = shift_dataset(W, H, tau)
-    
+    print(W)
     tau_est = estT(X,W,H)
+    print(W)
     
     plt.subplot(1, 2, 1)
     plt.imshow(tau)

@@ -1,7 +1,7 @@
 import numpy as np 
 
 import matplotlib.pyplot as plt
-
+import scipy.io as sio
 
 # import ShiftCPM
 import estTimeAutCor
@@ -14,7 +14,8 @@ def estT(X,W,H, my_estTimeAutCor=0):
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    A = np.copy(W)
+    # A = np.copy(W)
+    A = np.ones((W.shape[0], W.shape[1]))
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krpr = np.array([0,0,0])
@@ -34,10 +35,36 @@ def estT(X,W,H, my_estTimeAutCor=0):
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-400,400])
 
-    Lambda = np.ones(noc)*0#*sigma_sq.real
-    for i in range(Xf.shape[0]):
-        Tau[i], A[i] = my_estTimeAutCor.estTimeAutCor(Xf[i],A[i],Sf,krpr,krSf,krf,Tau[i],Nf,N,w,constr,TauW,Lambda, nargout=2)
-    #Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
+    Lambda = np.ones(noc)*0.3#*sigma_sq.real
+    # for i in range(Xf.shape[0]):
+        # Tau[i,:], A[i,:] = my_estTimeAutCor.estTimeAutCor(Xf[i,:],A[i,:],Sf,krpr,krSf,krf,Tau[i,:],Nf,N,w,constr,TauW,Lambda, nargout=2)
+        # print(A[i,:])
+    # Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,Tau,Nf,N,w,constr,TauW,Lambda, nargout=2)
+    
+    # Tau, A = my_estTimeAutCor.estTimeAutCor(Xf,
+    #                                         np.array(A, dtype=np.double),
+    #                                         Sf,
+    #                                         np.array(krpr, dtype=np.double),
+    #                                         krSf,
+    #                                         krf,
+    #                                         np.array(Tau, dtype=np.double),
+    #                                         Nf,
+    #                                         np.array(N, dtype=np.double),
+    #                                         np.array(w, dtype=np.double),
+    #                                         constr,
+    #                                         np.array(TauW, dtype=np.double),
+    #                                         np.array(Lambda, dtype=np.double),
+    #                                         nargout=2)
+    
+    #save all parameters as mat file
+    sio.savemat('parameters.mat', {'Xf':Xf, 'A':A, 'Sf':Sf, 'krpr':krpr, 'krSf':krSf, 'krf':krf, 'Tau':Tau, 'Nf':Nf, 'N':N, 'w':w, 'constr':constr, 'TauW':TauW, 'Lambda':Lambda})
+    
+    print(A)
+    
+    # Optater A
+        #    A(k,d) = C(ind)/(sum(w.*(krSf(d,:).*conj(krSf(d,:))))/sSf+Lambda(d));
+           
+    print(A)
     #T = my_estTimeAutCor.estTimeAutCor(Xf,A,Sf,krpr,krSf,krf,T,Nf,N,w,constr,TauW,Lambda)
     #my_shiftCP.terminate()
 
@@ -75,7 +102,7 @@ if __name__ == "__main__":
         # Broadcast Wf and H together
         Vf = np.einsum('NdM,dM->NM', Wf, Hft)
         V = np.fft.ifft(Vf)
-        return V
+        return V.real
 
     N, M, d = 5, 10000, 3
     Fs = 1000  # The sampling frequency we use for the simulation
@@ -99,7 +126,10 @@ if __name__ == "__main__":
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
 
     X = shift_dataset(W, H, tau)
-    tau_est, A = estT(X,W,H)
+    X = X + np.random.normal(0, 0.1*np.std(X), X.shape)
+    tau_est, A = estT(X,W.copy(),H.copy())
+    # print(tau_est)
+    # print(tau)
     #W = A
     plt.subplot(1, 2, 1)
     plt.imshow(tau)
@@ -111,8 +141,8 @@ if __name__ == "__main__":
 
     plt.subplot(2,1,1)
     plt.plot(shift_dataset(W, H, tau).real.T)
+    # plt.subplot(2,1,2)
+    # plt.plot(np.dot(W, H).real.T)
     plt.subplot(2,1,2)
-    plt.plot(np.dot(W, H).real.T)
-    plt.subplot(2,1,2)
-    plt.plot(shift_dataset(A, H, tau-tau_est).real.T)
+    plt.plot(shift_dataset(A, H, tau_est).real.T)
     plt.show()
