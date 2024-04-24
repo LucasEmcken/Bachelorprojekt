@@ -49,18 +49,18 @@ class ShiftNMF(torch.nn.Module):
 
         self.fit_tau()
         
-        fig, ax = plt.subplots(2, 1)
-        ax[0].plot(torch.fft.ifft(self.forward()).detach().numpy().T)
-        ax[1].plot(X.T)
-        plt.show()
-        exit()
+        # fig, ax = plt.subplots(2, 1)
+        # ax[0].plot(torch.fft.ifft(self.forward()).detach().numpy().T)
+        # ax[1].plot(X.T)
+        # plt.show()
+        # exit()
         
         
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
         self.optimizer = Adam([self.H], lr=lr)
         #self.optimizer = Adam([self.W], lr=lr)
-        #self.optimizer = Adam([self.W, self.H], lr=lr)
+        # self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
         if factor < 1:
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     alpha = 1e-5
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=100, tau_iter=0)
+    W, H, tau = nmf.fit(verbose=1, max_iter=250, tau_iter=0)
     print("")
     
     

@@ -76,11 +76,11 @@ class ShiftNMF(torch.nn.Module):
         H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
         
         T = estT(X,W,H)
-        W = inv_softplus(W.real)
+        # W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
         # self.W = torch.nn.Parameter(W)
-        # self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
+        self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
         running_loss = []
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     alpha = 1e-5
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=100, tau_iter=0)
+    W, H, tau = nmf.fit(verbose=1, max_iter=250, tau_iter=0)
     
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(H.T)
