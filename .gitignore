@@ -5,7 +5,9 @@
 *.pyc
 # C extensions
 *.so
-
+**.__pycache__/
+**.cpython-310.pyc
+.ipynb
 # Distribution / packaging
 .Python
 build/
