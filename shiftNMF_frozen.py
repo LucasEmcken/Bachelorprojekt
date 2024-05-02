@@ -33,17 +33,17 @@ class ShiftNMF(torch.nn.Module):
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double)*0)
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*np.std(X))
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
 
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
-        # self.optimizer = Adam([self.H], lr=lr)
+        self.optimizer = Adam([self.H], lr=lr)
         # self.optimizer = Adam([self.W], lr=lr)
-        self.optimizer = Adam([self.W, self.H], lr=lr)
+        # self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
         if factor < 1:
@@ -75,12 +75,16 @@ class ShiftNMF(torch.nn.Module):
         W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
         H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
         
-        T = estT(X,W,H)
-        # W = inv_softplus(W.real)
+        tau = np.array(self.tau.detach().numpy(), dtype=np.complex128)
+        
+        W = np.zeros_like(W)
+        
+        T = estT(X,W,H, tau.real)
+        W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
-        # self.W = torch.nn.Parameter(W)
-        self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
+        self.W = torch.nn.Parameter(W)
+        # self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
         running_loss = []
@@ -144,12 +148,12 @@ if __name__ == "__main__":
     alpha = 1e-5
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=250, tau_iter=0)
+    W, H, tau = nmf.fit(verbose=1, max_iter=1000, tau_iter=0)
     
-    fig, ax = plt.subplots(1, 2)
-    ax[0].plot(H.T)
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(H.T)
     
-    ax[1].plot(inv_softplus(H).T)
+    # ax[1].plot(inv_softplus(H).T)
     
     plt.show()
     

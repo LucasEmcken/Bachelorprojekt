@@ -1,6 +1,7 @@
 import numpy as np 
-
 import matplotlib.pyplot as plt
+from scipy.fft import ifft
+
 
 def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
     TauW = generateTauWMatrix(TauW,N[1])
@@ -31,10 +32,12 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                 else:
                     C = np.concatenate((C, np.conj(C[-1:0:-1])))
                 C = np.fft.ifft(C, axis=0)
+                # C = ifft(C, norm='ortho')
+                
                 C = C * TauW[d, :]
                 
                 ind = np.argmax(C)
-                    
+                
                 Tau[d] = ind - sSf - 1
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
                 if abs(Tau[d]) > (sSf / 2):
@@ -58,7 +61,7 @@ def generateTauWMatrix(TauW, N2):
 
 
 
-def estT(X,W,H):
+def estT(X,W,H, Tau=None):
     N = [*X.shape,1]
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
@@ -70,14 +73,17 @@ def estT(X,W,H):
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krSf = np.conj(Sf)
     krf = (-1j*2*np.pi * np.arange(0,N[1])/N[1])[:Nf[1]]
-    Tau = np.zeros((N[0],noc))
+    # Tau = np.zeros((N[0],noc))
+    if Tau is None:
+        Tau = np.zeros((N[0],noc))
     N = np.array(N)
     w = np.ones(Xf.shape[1])
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-800,800])
     SST = np.sum(X**2)
     sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(noc)*10**2#*sigma_sq.real
+    Lambda = np.ones(noc)#*sigma_sq.real
+    Lambda *= 1
     for i in range(N[0]):
         Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
 
@@ -130,20 +136,22 @@ if __name__ == "__main__":
 
     X = shift_dataset(W, H, tau)
     print(W)
+    W_before = np.copy(W)
+    W=np.zeros_like(W)
     tau_est = estT(X,W,H)
     print(W)
     
     plt.subplot(1, 2, 1)
-    plt.imshow(tau)
+    plt.imshow(W_before)
     plt.colorbar()
     plt.subplot(1, 2, 2)
-    plt.imshow(tau_est)
+    plt.imshow(W)
     plt.colorbar()
     plt.show()
 
 
     plt.subplot(2,1,1)
-    plt.plot(shift_dataset(W, H, tau).real.T)
+    plt.plot(shift_dataset(W_before, H, tau).real.T)
     plt.subplot(2,1,2)
     plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
 

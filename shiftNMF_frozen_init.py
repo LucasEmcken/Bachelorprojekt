@@ -58,9 +58,9 @@ class ShiftNMF(torch.nn.Module):
         
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
-        self.optimizer = Adam([self.H], lr=lr)
+        # self.optimizer = Adam([self.H], lr=lr)
         #self.optimizer = Adam([self.W], lr=lr)
-        # self.optimizer = Adam([self.W, self.H], lr=lr)
+        self.optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
         
         if factor < 1:
@@ -91,12 +91,12 @@ class ShiftNMF(torch.nn.Module):
         
         W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
         H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
-        
+                
         T = estT(X,W,H)
         W = inv_softplus(W.real)
-        
+
         self.tau = torch.tensor(T, dtype=torch.cdouble)
-        self.W = torch.nn.Parameter(W)
+        # self.W = torch.nn.Parameter(W)
         # self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
