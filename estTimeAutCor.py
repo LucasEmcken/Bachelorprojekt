@@ -1,16 +1,17 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 from scipy.fft import ifft
+from scipy.optimize import nnls
 
 
 def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
     TauW = generateTauWMatrix(TauW,N[1])
-    #reshape to (1, number_of_components)
+
     Xf = np.expand_dims(Xf, axis=0)
     A = np.expand_dims(A, axis=0)
-    #T = np.expand_dims(T, axis=1)
+    #make A complex
+    A = np.array(A, dtype=np.complex128)
     noc = A.shape[1]
-    # noc = 3
     if N[1] % 2 == 0:
         sSf = 2 * Nf[1] - 2
     else:
@@ -18,11 +19,10 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
     t1 = np.random.permutation(A.shape[0])
     t2 = np.random.permutation(noc)
     for k in t1:
-        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(Tau[k].conj().T * krf)))
+        Resf = Xf[k, :] - np.dot(A[k, :], (krSf * np.exp(np.conj(Tau[k]).T * krf)))
         for d in t2:
             if np.sum(TauW[d, :]) > 0:
                 Resfud = Resf + A[k, d] * (krSf[d, :] * np.exp(Tau[d] * krf))
-                # Xft = np.squeeze(unmatricizing(Resfud, 1, [1, Nf[1], np.prod(Nf[2:])]))
                 Xft = Resfud
                 Xd = Xft
                 
@@ -30,16 +30,16 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                 if N[1] % 2 == 0:
                     C = np.concatenate((C, np.conj(C[-2:0:-1])))
                 else:
-                    C = np.concatenate((C, np.conj(C[-1:0:-1])))
+                    C = np.concatenate((C, np.conj(C[:0:-1])))
                 C = np.fft.ifft(C, axis=0)
-                # C = ifft(C, norm='ortho')
-                
                 C = C * TauW[d, :]
                 
                 ind = np.argmax(C)
                 
                 Tau[d] = ind - sSf - 1
+                
                 A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
+                
                 if abs(Tau[d]) > (sSf / 2):
                     if Tau[d] > 0:
                         Tau[d] = Tau[d] - sSf
@@ -66,9 +66,9 @@ def estT(X,W,H, Tau=None):
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
     Nf = np.array(Xf.shape)
-    # A = np.array(np.copy(W), dtype = np.complex128)
+    # A = np.copy(W)
     A = W
-    # A = np.ones(shape=(W.shape[0],W.shape[1]),dtype=np.complex128)
+    
     noc = A.shape[1]
     Sf = np.ascontiguousarray(np.fft.fft(H)[:,:Nf[1]])
     krSf = np.conj(Sf)
@@ -80,16 +80,32 @@ def estT(X,W,H, Tau=None):
     w = np.ones(Xf.shape[1])
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
     TauW = np.ones((noc, 1))*np.array([-800,800])
-    SST = np.sum(X**2)
-    sigma_sq = SST / (11*np.prod(N) -X.shape[0]*X.shape[1])
-    Lambda = np.ones(noc)#*sigma_sq.real
-    Lambda *= 1
-    for i in range(N[0]):
-        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
+    SST = np.sum(np.square(X))
+    
+    miss_ind = np.isnan(X)
+    SNR = 1
+    sigma_sq = SST / ((1 + 10 ** (SNR / 10)*np.prod(N)))
 
     
+    # print(sigma_sq)
+    # exit()
+    Lambda = np.ones(noc)*sigma_sq.real
+    Lambda *= 0.5
+    for i in range(N[0]):
+        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
+    
     Tau = np.array(Tau,dtype=np.float64)
-    return Tau
+    
+    #update A by nnls
+    for i in range(N[0]):
+        H_shifted = np.zeros_like(H)
+        for j in range(H.shape[0]):
+            H_shifted[j] = np.roll(H[j], int(Tau[i,j]))
+    
+        A[i] = nnls(H_shifted.T.real, X[i].real)[0]
+    
+    return Tau, A
+
 
 
 if __name__ == "__main__":
@@ -135,12 +151,12 @@ if __name__ == "__main__":
     H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
 
     X = shift_dataset(W, H, tau)
-    print(W)
     W_before = np.copy(W)
-    W=np.zeros_like(W)
-    tau_est = estT(X,W,H)
-    print(W)
+    # W=np.zeros_like(W)
+    tau_est, A = estT(X,W,H)
+    # print(W)
     
+    W = A
     plt.subplot(1, 2, 1)
     plt.imshow(W_before)
     plt.colorbar()
@@ -153,7 +169,7 @@ if __name__ == "__main__":
     plt.subplot(2,1,1)
     plt.plot(shift_dataset(W_before, H, tau).real.T)
     plt.subplot(2,1,2)
-    plt.plot(shift_dataset(W, H, tau-tau_est).real.T)
+    plt.plot(shift_dataset(W, H, tau_est).real.T)
 
     plt.show()
     

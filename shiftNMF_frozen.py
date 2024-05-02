@@ -63,7 +63,7 @@ class ShiftNMF(torch.nn.Module):
         Hft = torch.cat((Hf, torch.conj(Hf_reverse)), dim=1)
         f = torch.arange(0, self.M) / self.M
         omega = torch.exp(-1j * 2 * torch.pi * torch.einsum('Nd,M->NdM', self.tau, f))
-        Wf = torch.einsum('Nd,NdM->NdM', self.softplus(self.W), omega)
+        Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
         # Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
         # Broadcast Wf and H together
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
@@ -79,12 +79,12 @@ class ShiftNMF(torch.nn.Module):
         
         W = np.zeros_like(W)
         
-        T = estT(X,W,H, tau.real)
-        W = inv_softplus(W.real)
+        T, A = estT(X,W,H, tau.real)
+        # W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
-        self.W = torch.nn.Parameter(W)
-        # self.W = torch.nn.Parameter(torch.tensor(W,  dtype=torch.double))
+        # self.W = torch.nn.Parameter(W)
+        self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
 
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
         running_loss = []

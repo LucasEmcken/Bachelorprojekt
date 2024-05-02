@@ -14,6 +14,7 @@ def pascal(x):
 
 def lorentzian(x, mean, variance):
     return 1 / (np.pi * variance * (1 + ((x - mean) / variance) ** 2))
+
 def gauss(x, mean, variance):
     return 1/(variance*np.sqrt(2*np.pi))*np.exp(-1/2*((x-mean)/variance)**2)
 
