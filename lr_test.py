@@ -1,0 +1,59 @@
+import torch
+import scipy
+import scipy.io
+import sys
+import numpy as np
+
+nr_components = int(sys.argv[1])
+model_name = sys.argv[2]
+data_name = sys.argv[3]
+
+
+if data_name == "alko":
+    from helpers.data import X_ALKO
+    X = X_ALKO
+if data_name == "wine":
+    from helpers.data import X_WINE
+    X = X_WINE
+
+
+print("starting")
+print(model_name)
+print(data_name)
+
+lrs = [1, 0.1, 0.01]
+
+nr_tests = 10
+losses = np.zeros((len(lrs),nr_tests))
+
+alpha = 1e-5
+min_imp = 0.001
+
+for i, lr in enumerate(lrs):
+    print("learning rate:" + str(lr))
+    for it in range(nr_tests):
+        print("iteration: "+str(it)+" out of "+str(nr_tests))
+        if model_name == "DISC_NMF":
+            from shiftNMFDiscTau import ShiftNMF
+            model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=10, min_imp=min_imp)
+        if model_name == "OPT_NMF":
+            from shiftNMF_frozen import ShiftNMF
+            model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=10, min_imp=min_imp)
+        returns = model.fit(verbose=True, return_loss=True, max_iter=500)
+        loss = returns[-1]
+        losses[i,it] = loss[-1]
+
+print(lrs)
+print(np.mean(losses,axis=1).flatten())
+print("all losses")
+print(losses)
+print("DONE")
+    # plt.ylabel("average loss")
+    # plt.xlabel("Learning rate")
+    # plt.plot([str(lr) for lr in lrs], np.mean(losses,axis=1).flatten())
+    # plt.suptitle('Categorical Plotting')
+    # plt.savefig("lr_test_"+str(model_name)+"_"+str(data_name)+"_"+str(comp_nr))
+
+np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(nr_components)+"_"+"lr_test",losses)
+
+
