@@ -92,7 +92,7 @@ class ShiftNMF(torch.nn.Module):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
-        while self.iters < max_iter:#not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
+        while not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
             self.iters += 1
             # zero optimizer gradient
             self.optimizer.zero_grad()
@@ -122,6 +122,8 @@ class ShiftNMF(torch.nn.Module):
             # print loss
             if verbose:
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}", end='\r')
+        if verbose:
+                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}")
 
         W = self.W.detach().numpy()
         H = (self.softplus(self.H)*self.std).detach().numpy()
