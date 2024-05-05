@@ -1,10 +1,11 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 from scipy.fft import ifft
-from scipy.optimize import nnls
+# from scipy.optimize import nnls
+from nnls_l1 import nnls
 
 
-def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
+def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW):
     TauW = generateTauWMatrix(TauW,N[1])
 
     Xf = np.expand_dims(Xf, axis=0)
@@ -38,7 +39,8 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW, Lambda):
                 
                 Tau[d] = ind - sSf - 1
                 
-                A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
+                # A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
+                A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf)
                 
                 if abs(Tau[d]) > (sSf / 2):
                     if Tau[d] > 0:
@@ -61,7 +63,7 @@ def generateTauWMatrix(TauW, N2):
 
 
 
-def estT(X,W,H, Tau=None):
+def estT(X,W,H, Tau=None, Lambda=0):
     N = [*X.shape,1]
     Xf = np.fft.fft(X)
     Xf = np.ascontiguousarray(Xf[:,:int(np.floor(Xf.shape[1]/2))+1])
@@ -79,7 +81,7 @@ def estT(X,W,H, Tau=None):
     N = np.array(N)
     w = np.ones(Xf.shape[1])
     #TauW = np.column_stack((np.ones((3,1)) * -N[1]*2 / 2, np.ones(3) * N[1] / 2))
-    TauW = np.ones((noc, 1))*np.array([-800,800])
+    TauW = np.ones((noc, 1))*np.array([-1000,1000])
     SST = np.sum(np.square(X))
     
     miss_ind = np.isnan(X)
@@ -89,20 +91,20 @@ def estT(X,W,H, Tau=None):
     
     # print(sigma_sq)
     # exit()
-    Lambda = np.ones(noc)*sigma_sq.real
-    Lambda *= 0.5
+    # Lambda = np.ones(noc)*sigma_sq.real
+    # Lambda *= 0.5
     for i in range(N[0]):
-        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW,Lambda)
+        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW)
     
     Tau = np.array(Tau,dtype=np.float64)
     
-    #update A by nnls
+    #update A by nnls REMOVE to estimate with estTimeAutCor
     for i in range(N[0]):
         H_shifted = np.zeros_like(H)
         for j in range(H.shape[0]):
             H_shifted[j] = np.roll(H[j], int(Tau[i,j]))
     
-        A[i] = nnls(H_shifted.T.real, X[i].real)[0]
+        A[i] = nnls(H_shifted.T.real, X[i].real, Lambda)
     
     return Tau, A
 
@@ -152,7 +154,7 @@ if __name__ == "__main__":
 
     X = shift_dataset(W, H, tau)
     W_before = np.copy(W)
-    # W=np.zeros_like(W)
+    W=np.zeros_like(W)
     tau_est, A = estT(X,W,H)
     # print(W)
     

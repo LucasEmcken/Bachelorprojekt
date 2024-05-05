@@ -5,7 +5,7 @@ from torch.optim import Adam, lr_scheduler
 from estTimeAutCor import estT
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
-from torchrl.modules.utils import inv_softplus
+from helpers.initializers import PCA_init
 # import matplotlib.pyplot as plt
 
 def generateTauWMatrix(TauW, N2):
@@ -33,8 +33,9 @@ class ShiftNMF(torch.nn.Module):
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
+        # self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
+        self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.05)
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
@@ -72,21 +73,22 @@ class ShiftNMF(torch.nn.Module):
     def fit_tau(self):
         X = np.array(self.X.detach().numpy(), dtype=np.complex128)
         
-        W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
+        # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
         H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
         
         tau = np.array(self.tau.detach().numpy(), dtype=np.complex128)
         
-        W = np.zeros_like(W)
-        
-        T, A = estT(X,W,H, tau.real)
+        W = np.zeros((self.N, self.rank))
+
+        T, A = estT(X,W,H, tau.real, self.Lambda)
         # W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
         # self.W = torch.nn.Parameter(W)
         self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
 
-    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100):
+    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100, Lambda=0):
+        self.Lambda = Lambda
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
@@ -103,10 +105,11 @@ class ShiftNMF(torch.nn.Module):
             
             loss.backward()
 
-            # Update W and H
+            # Update H
             self.optimizer.step()
 
-            if (self.iters%20) == 0 and self.iters > tau_iter:
+            # Update W and tau
+            if (self.iters%25) == 0 and self.iters > tau_iter:
                 self.fit_tau()
 
             if self.scheduler != None:
@@ -120,7 +123,7 @@ class ShiftNMF(torch.nn.Module):
             if verbose:
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}", end='\r')
 
-        W = self.softplus(self.W).detach().numpy()
+        W = self.W.detach().numpy()
         H = (self.softplus(self.H)*self.std).detach().numpy()
         tau = self.tau.detach().numpy()
 
@@ -137,9 +140,53 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # from TimeCor import *
     
-    X  = pd.read_csv("X_duplet.csv").to_numpy()
+    def shift_dataset(W, H, tau):
+        # Get half the frequencies
+        Nf = H.shape[1] // 2 + 1
+        # Fourier transform of S along the second dimension
+        Hf = np.fft.fft(H, axis=1)
+        # Keep only the first Nf[1] elements of the Fourier transform of S
+        Hf = Hf[:, :Nf]
+        # Construct the shifted Fourier transform of S
+        Hf_reverse = np.fliplr(Hf[:, 1:Nf - 1])
+        # Concatenate the original columns with the reversed columns along the second dimension
+        Hft = np.concatenate((Hf, np.conj(Hf_reverse)), axis=1)
+        f = np.arange(0, M) / M
+        omega = np.exp(-1j * 2 * np.pi * np.einsum('Nd,M->NdM', tau, f))
+        Wf = np.einsum('Nd,NdM->NdM', W, omega)
+        # Broadcast Wf and H together
+        Vf = np.einsum('NdM,dM->NM', Wf, Hft)
+        V = np.fft.ifft(Vf)
+        return V
 
-    X = np.pad(X, ((0, 0), (1000, 1000)), 'edge')
+    N, M, d = 5, 10000, 3
+    Fs = 1000  # The sampling frequency we use for the simulation
+    t0 = 10    # The half-time interval we look at
+    t = np.arange(-t0, t0, 1/Fs)  # the time samples
+    f = np.arange(-Fs/2, Fs/2, Fs/len(t))  # the corresponding frequency samples
+
+    def gauss(mu, s, time):
+        return 1/(s*np.sqrt(2*np.pi))*np.exp(-1/2*((time-mu)/s)**2)
+
+    W = np.random.dirichlet(np.ones(d), N)
+
+    shift = 75
+    # Random gaussian shifts
+    # tau = np.random.randint(-shift, shift, size=(N, d))
+    tau = np.random.randn(N, d)*shift
+    tau = np.array(tau, dtype=np.int32)
+
+    mean = [1500, 5000, 8500]
+    std = [30, 40, 50]
+    t = np.arange(0, 10000, 1)
+
+    H = np.array([gauss(m, s, t) for m, s in list(zip(mean, std))])
+
+    X = shift_dataset(W, H, tau)
+        
+    # X  = pd.read_csv("X_duplet.csv").to_numpy()
+
+    # X = np.pad(X, ((0, 0), (1000, 1000)), 'edge')
     
     # plt.plot(X.T)
     # plt.show()
@@ -147,20 +194,24 @@ if __name__ == "__main__":
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.05, alpha = alpha, factor=1, patience=10000)
-    W, H, tau = nmf.fit(verbose=1, max_iter=1000, tau_iter=0)
+    nmf = ShiftNMF(X, 5, lr=0.05, alpha = alpha, factor=1, patience=10000)
+    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=150, Lambda=10)
+    
+    plt.imshow(W_est)
+    plt.show()
     
     fig, ax = plt.subplots(1, 1)
-    ax.plot(H.T)
+    ax.plot(H_est.T)
     
     # ax[1].plot(inv_softplus(H).T)
     
     plt.show()
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].plot(X.T)
-    # ax[1].plot(nmf.recon.detach().numpy().T)
-    # plt.show()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].plot(X.T)
+    ax[1].plot(nmf.recon.detach().numpy().T)
+    ax[2].plot(np.dot(W_est, H_est).T)
+    plt.show()
     
     # plt.imshow(tau.real)
     # plt.imshow(W)
