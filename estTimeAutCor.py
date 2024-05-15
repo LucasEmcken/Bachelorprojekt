@@ -98,6 +98,9 @@ def estT(X,W,H, Tau=None, Lambda=0):
     
     Tau = np.array(Tau,dtype=np.float64)
     
+    #subtract mean of tau in each column
+    Tau = Tau - np.mean(Tau, axis=0)
+    
     #update A by nnls REMOVE to estimate with estTimeAutCor
     for i in range(N[0]):
         H_shifted = np.zeros_like(H)

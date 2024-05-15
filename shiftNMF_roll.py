@@ -84,10 +84,6 @@ class ShiftNMF(torch.nn.Module):
         # W = inv_softplus(W.real)
         
         self.tau = torch.tensor(T, dtype=torch.cdouble)
-        
-        #subtract the means of each column in tau
-        # self.tau = self.tau - torch.mean(self.tau, axis=1).reshape(-1, 1)
-        
         # self.W = torch.nn.Parameter(W)
         self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
 
@@ -176,10 +172,10 @@ if __name__ == "__main__":
 
     W = np.random.dirichlet(np.ones(d), N)
 
-    shift = 200
+    shift = 75
     # Random gaussian shifts
-    tau = np.random.randint(-shift, shift, size=(N, d))
-    # tau = np.random.randn(N, d)*shift
+    # tau = np.random.randint(-shift, shift, size=(N, d))
+    tau = np.random.randn(N, d)*shift
     tau = np.array(tau, dtype=np.int32)
 
     mean = [1500, 5000, 8500]
@@ -200,34 +196,24 @@ if __name__ == "__main__":
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=0, Lambda=0)
+    nmf = ShiftNMF(X, 5, lr=0.05, alpha = alpha, factor=1, patience=10000)
+    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=150, Lambda=10)
     
-    
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(tau)
-    ax[1].imshow(tau_est.real)
+    plt.imshow(W_est)
     plt.show()
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(W_est)
-    # ax[1].imshow(W)
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(H_est.T)
     
-    # plt.show()
+    # ax[1].plot(inv_softplus(H).T)
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].plot(H_est.T)
-    # ax[1].plot(H.T)
+    plt.show()
     
-    # # ax[1].plot(inv_softplus(H).T)
-    
-    # plt.show()
-    
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].plot(X.T)
-    # ax[1].plot(nmf.recon.detach().numpy().T)
-    # ax[2].plot(np.dot(W_est, H_est).T)
-    # plt.show()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].plot(X.T)
+    ax[1].plot(nmf.recon.detach().numpy().T)
+    ax[2].plot(np.dot(W_est, H_est).T)
+    plt.show()
     
     # plt.imshow(tau.real)
     # plt.imshow(W)
