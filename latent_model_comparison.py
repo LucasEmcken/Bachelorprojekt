@@ -140,8 +140,6 @@ class LatentModelComparer:
             # idx = np.argmax(p_aucs)
             return idx_best, ms_best
         
-            
-
 
 
 
