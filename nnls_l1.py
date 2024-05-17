@@ -32,6 +32,6 @@ def nnls(A, b, alpha=0, x0=None):
     bounds = [(0, None) for _ in range(A.shape[1])]
 
     # Minimize the objective function
-    result = minimize(objective_function, x0, args=(A, b, alpha), method='L-BFGS-B', bounds=bounds)
+    result = minimize(objective_function, x0, args=(A, b, alpha), method='L-BFGS-B', bounds=bounds, tol=1e-32)
 
     return result.x

@@ -2,6 +2,7 @@ from latent_model_comparison import LatentModelComparer
 #import pearsonr
 # from scipy.stats import pearsonr
 from scipy.signal import correlate
+from sklearn.metrics import r2_score
 
 def normalized_cross_correlation(series1, series2, max_lag):
     series1 = (series1 - series1.mean()) / series1.std()
@@ -86,53 +87,44 @@ if __name__ == '__main__':
 
     X = shift_dataset(W, H, tau)
 
+    noise = np.random.normal(0, 0.00001, X.shape)
+    # noise = np.abs(noise)
+    X_noisy = X + noise
+    
     # plt.plot(X.T)
     # plt.show()
+    best_fit = np.linalg.norm(X - X_noisy,'fro')
 
     # Range of number of components
-    components_range = range(1, 10)
+    components_range = range(5, 10)
 
-    autocorrelations = []
+    noise_errors = []
     stds = []
 
     for k in components_range:
         print(f'fitting with components = {k}')
-        temp_auto = []
+        temp_noise = []
         for repeat in range(3):
             print(f'round {repeat}')
-            model = ShiftNMF(X, k, lr=0.3, alpha=1e-6, patience=1000, min_imp=0)
-            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=1000, tau_iter=0, Lambda=0.5)
+            model = ShiftNMF(X_noisy, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
+            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=750, tau_iter=0, Lambda=0)
             
-            #if k is less than H.shape[0], we add rows with noise to H
-            # if k < H.shape[0]:
-            #     H_est = np.vstack((H_est, np.random.rand(H.shape[0]-k, H.shape[1])))
+            X_est = shift_dataset(W_est, H_est, tau_est)
+            noise_error = np.linalg.norm(X - X_est,'fro')
+            temp_noise.append(noise_error)
             
-            # if k > H.shape[0]:
-            #     H = np.vstack((H, np.random.rand(k-H.shape[0], H.shape[1])))
-            
-            # print(H.shape, H_est.shape)
-            
-            # Create the comparer object
-            comparer = LatentModelComparer(H.T, H_est.T)
-            # Compare the true and estimated components
-            C = comparer.match(type='exact', measure='crosscorr')
-            temp_auto.append(np.mean(C[1]))
-        
-        autocorrelations.append(np.mean(temp_auto))
-        stds.append(np.std(temp_auto))
+        noise_errors.append(np.mean(temp_noise))
+        stds.append(np.std(temp_noise))
 
     # Plotting the results
     plt.figure(figsize=(10, 6))
     # plt.plot(components_range, autocorrelations, marker='o')
     
-    #error plot with std
-    plt.errorbar(components_range, autocorrelations, yerr=stds, fmt='o', capsize=5)
-    
-    #make vline at true component number
-    plt.axvline(x=H.shape[0], color='r', linestyle='--')
-    
-    plt.xlabel('Number of Components')
-    plt.ylabel('Autocorrelation (H_true, H_est)')
-    plt.title('Autocorrelation vs Number of Components')
-    plt.grid(True)
+    plt.errorbar(components_range, noise_errors, yerr=stds, fmt='o')
+    plt.title('Noise error vs number of components')
+    plt.xlabel('Number of components')
+    plt.ylabel('Noise error')
+    #make a horizontal line at the best level
+    best_fit = np.linalg.norm(X - X_noisy,'fro')
+    plt.axhline(y=best_fit, color='r', linestyle='-')
     plt.show()

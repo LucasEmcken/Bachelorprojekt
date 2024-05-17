@@ -94,7 +94,7 @@ def estT(X,W,H, Tau=None, Lambda=0):
     # Lambda = np.ones(noc)*sigma_sq.real
     # Lambda *= 0.5
     for i in range(N[0]):
-        Tau[i], A[i] = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW)
+        Tau[i], _ = estTimeAutCor(Xf[i],A[i],Sf,krSf,krf,Tau[i],Nf,N,w,TauW)
     
     # Tau = np.array(Tau,dtype=np.float64)
     
@@ -107,7 +107,7 @@ def estT(X,W,H, Tau=None, Lambda=0):
         for j in range(H.shape[0]):
             H_shifted[j] = np.roll(H[j], int(Tau[i,j]))
     
-        A[i] = nnls(H_shifted.T.real, X[i].real, Lambda)
+        A[i] = nnls(H_shifted.T.real, X[i].real, Lambda, A[i].real)
     
     return Tau, A
 
