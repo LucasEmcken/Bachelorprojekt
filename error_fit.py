@@ -87,12 +87,17 @@ if __name__ == '__main__':
 
     X = shift_dataset(W, H, tau)
 
-    noise = np.random.normal(0, 0.00001, X.shape)
+    #scale X up 1000 times
+    X = X*1000
+    
+    noise = np.random.normal(0, 0.001, X.shape)
     # noise = np.abs(noise)
     X_noisy = X + noise
     
-    # plt.plot(X.T)
-    # plt.show()
+    
+    
+    plt.plot(X.T)
+    plt.show()
     best_fit = np.linalg.norm(X - X_noisy,'fro')
 
     # Range of number of components

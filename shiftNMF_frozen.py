@@ -72,24 +72,24 @@ class ShiftNMF(torch.nn.Module):
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
     
-    def fit_tau(self):
-        X = np.array(self.X.detach().numpy(), dtype=np.complex128)
+    def fit_tau(self, update_T = True):
+        X = np.array(self.X.detach().numpy(), dtype=np.double)
         
         # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
-        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
+        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.double)
         
-        tau = np.array(self.tau.detach().numpy(), dtype=np.complex128)
+        tau = np.array(self.tau.detach().numpy(), dtype=np.double)
         
-        W = np.zeros((self.N, self.rank))
+        # W = np.zeros((self.N, self.rank))
+        W = np.array(self.W.detach().numpy(), dtype=np.double)
 
-        T, A = estT(X,W,H, tau.real, self.Lambda)
+        T, A = estT(X,W,H, Lambda = self.Lambda)
         # W = inv_softplus(W.real)
         
-        self.tau = torch.tensor(T, dtype=torch.cdouble)
-        
-        #subtract the means of each column in tau
-        # self.tau = self.tau - torch.mean(self.tau, axis=1).reshape(-1, 1)
-        
+        if update_T:
+            self.tau = torch.tensor(T, dtype=torch.double)
+        # self.tau = torch.tensor(T, dtype=torch.cdouble)
+
         # self.W = torch.nn.Parameter(W)
         self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
 
@@ -117,7 +117,7 @@ class ShiftNMF(torch.nn.Module):
 
             # Update W and tau
             if (self.iters%25) == 0 and self.iters > tau_iter:
-                self.fit_tau()
+                self.fit_tau(update_T = self.iters < max_iter - 250)
 
             if self.scheduler != None:
                 self.scheduler.step(loss)
