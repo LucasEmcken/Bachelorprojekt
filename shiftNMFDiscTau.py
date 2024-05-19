@@ -22,7 +22,7 @@ class ShiftNMF(torch.nn.Module):
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True))
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True))
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True)*0.05)
         # self.tau = torch.nn.Parameter(torch.randn(self.N, self.rank)*10, requires_grad=True)
         self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         self.tau = lambda: self.tau_tilde

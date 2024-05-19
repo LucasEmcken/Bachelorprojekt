@@ -18,7 +18,7 @@ def generateTauWMatrix(TauW, N2):
     return TauWMatrix
 
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.5, min_imp=1e-6):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.9, min_imp=1e-6):
         super().__init__()
 
         self.rank = rank
@@ -34,10 +34,8 @@ class ShiftNMF(torch.nn.Module):
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         # self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
-        #set W to random between 0 and 1
-        self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
-        # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.1)
+        self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.05)
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
@@ -72,24 +70,20 @@ class ShiftNMF(torch.nn.Module):
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
     
-    def fit_tau(self, update_T = True):
-        X = np.array(self.X.detach().numpy(), dtype=np.double)
+    def fit_tau(self):
+        X = np.array(self.X.detach().numpy(), dtype=np.complex128)
         
         # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
-        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.double)
+        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.complex128)
         
-        tau = np.array(self.tau.detach().numpy(), dtype=np.double)
+        tau = np.array(self.tau.detach().numpy(), dtype=np.complex128)
         
-        # W = np.zeros((self.N, self.rank))
-        W = np.array(self.W.detach().numpy(), dtype=np.double)
+        W = np.zeros((self.N, self.rank))
 
-        T, A = estT(X,W,H, Lambda = self.Lambda)
+        T, A = estT(X,W,H, tau.real, self.Lambda)
         # W = inv_softplus(W.real)
         
-        if update_T:
-            self.tau = torch.tensor(T, dtype=torch.double)
-        # self.tau = torch.tensor(T, dtype=torch.cdouble)
-
+        self.tau = torch.tensor(T, dtype=torch.cdouble)
         # self.W = torch.nn.Parameter(W)
         self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
 
@@ -98,8 +92,7 @@ class ShiftNMF(torch.nn.Module):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
-        #while not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
-        while self.iters < max_iter:
+        while not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
             self.iters += 1
             # zero optimizer gradient
             self.optimizer.zero_grad()
@@ -117,7 +110,7 @@ class ShiftNMF(torch.nn.Module):
 
             # Update W and tau
             if (self.iters%25) == 0 and self.iters > tau_iter:
-                self.fit_tau(update_T = self.iters < max_iter - 250)
+                self.fit_tau()
 
             if self.scheduler != None:
                 self.scheduler.step(loss)
@@ -179,10 +172,10 @@ if __name__ == "__main__":
 
     W = np.random.dirichlet(np.ones(d), N)
 
-    shift = 200
+    shift = 75
     # Random gaussian shifts
-    tau = np.random.randint(-shift, shift, size=(N, d))
-    # tau = np.random.randn(N, d)*shift
+    # tau = np.random.randint(-shift, shift, size=(N, d))
+    tau = np.random.randn(N, d)*shift
     tau = np.array(tau, dtype=np.int32)
 
     mean = [1500, 5000, 8500]
@@ -203,34 +196,24 @@ if __name__ == "__main__":
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=0, Lambda=0)
+    nmf = ShiftNMF(X, 5, lr=0.05, alpha = alpha, factor=1, patience=10000)
+    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=150, Lambda=10)
     
-    
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(tau)
-    ax[1].imshow(tau_est.real)
+    plt.imshow(W_est)
     plt.show()
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(W_est)
-    # ax[1].imshow(W)
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(H_est.T)
     
-    # plt.show()
+    # ax[1].plot(inv_softplus(H).T)
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].plot(H_est.T)
-    # ax[1].plot(H.T)
+    plt.show()
     
-    # # ax[1].plot(inv_softplus(H).T)
-    
-    # plt.show()
-    
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].plot(X.T)
-    # ax[1].plot(nmf.recon.detach().numpy().T)
-    # ax[2].plot(np.dot(W_est, H_est).T)
-    # plt.show()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].plot(X.T)
+    ax[1].plot(nmf.recon.detach().numpy().T)
+    ax[2].plot(np.dot(W_est, H_est).T)
+    plt.show()
     
     # plt.imshow(tau.real)
     # plt.imshow(W)
