@@ -48,7 +48,7 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW):
                     else:
                         Tau[d] = Tau[d] + sSf
                 Resf = Resfud - A[k,d] * (krSf[d, :] * np.exp(Tau[d] * krf))
-    return Tau, A
+    return Tau.real, A.real
 
 
 
