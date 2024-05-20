@@ -28,7 +28,16 @@ class ShiftNMF(torch.nn.Module):
         
         self.N, self.M = X.shape
 
-        self.softplus = torch.nn.Softplus()
+        # self.softplus = torch.nn.Softplus()
+        self.softplus = torch.nn.Softmax(dim=1)
+        #custom softmax function to sum to n instead of 1
+        # def softmax(x, dim=1, n=1):
+        #     """Compute softmax values for each vector x in input."""
+        #     e_x = torch.exp(x - torch.max(x, dim=dim, keepdim=True)[0])
+        #     e_x = n* e_x
+        #     return e_x / e_x.sum(dim=dim, keepdim=True)
+
+        
         # self.inv_softplus = inv_softplus(bias=1)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
@@ -37,7 +46,7 @@ class ShiftNMF(torch.nn.Module):
         #set W to random between 0 and 1
         self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
         # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.1)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.01)
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
@@ -67,12 +76,12 @@ class ShiftNMF(torch.nn.Module):
         f = torch.arange(0, self.M) / self.M
         omega = torch.exp(-1j * 2 * torch.pi * torch.einsum('Nd,M->NdM', self.tau, f))
         Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
-        # Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
+        # Wf = torch.einsum('Nd,NdM->NdM', self.softplus(self.W), omega)
         # Broadcast Wf and H together
         V = torch.einsum('NdM,dM->NM', Wf, Hft)
         return V
     
-    def fit_tau(self, update_T = True):
+    def fit_tau(self, update_T = True, update_W = True):
         X = np.array(self.X.detach().numpy(), dtype=np.double)
         
         # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
@@ -84,15 +93,17 @@ class ShiftNMF(torch.nn.Module):
         W = np.array(self.W.detach().numpy(), dtype=np.double)
 
         T, A = estT(X,W,H, Lambda = self.Lambda)
+        # T, A = estT(X, W, H, tau, Lambda = self.Lambda)
         # W = inv_softplus(W.real)
-        
+
         if update_T:
             self.tau = torch.tensor(T, dtype=torch.double)
         # self.tau = torch.tensor(T, dtype=torch.cdouble)
 
         # self.W = torch.nn.Parameter(W)
-        self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
-
+        if update_W:
+            self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
+            
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100, Lambda=0):
         self.Lambda = Lambda
         running_loss = []
@@ -117,7 +128,18 @@ class ShiftNMF(torch.nn.Module):
 
             # Update W and tau
             if (self.iters%25) == 0 and self.iters > tau_iter:
-                self.fit_tau(update_T = self.iters < max_iter - 250)
+                #print loss before updating tau
+                # output = self.forward()
+                # loss_pre = self.lossfn(output)
+                # print(f"epoch: {len(running_loss)}, Loss: {loss_pre.item()}, Tau: {torch.norm(self.tau)}")
+                self.fit_tau(update_T = True, update_W = True)
+                #print loss after updating tau
+                # output = self.forward()
+                # loss_pos = self.lossfn(output)
+                # print(f"epoch: {len(running_loss)}, Loss: {loss_pos.item()}, Tau: {torch.norm(self.tau)}")
+                # if loss_pos > loss_pre:
+                #     print("HERE")
+                # print('-'*50)
 
             if self.scheduler != None:
                 self.scheduler.step(loss)
@@ -135,6 +157,7 @@ class ShiftNMF(torch.nn.Module):
         W = self.W.detach().numpy()
         H = (self.softplus(self.H)*self.std).detach().numpy()
         tau = self.tau.detach().numpy()
+        tau = np.array(tau, dtype=np.int32)
 
         output = self.forward()
         self.recon = torch.fft.ifft(output)*self.std
@@ -166,7 +189,7 @@ if __name__ == "__main__":
         # Broadcast Wf and H together
         Vf = np.einsum('NdM,dM->NM', Wf, Hft)
         V = np.fft.ifft(Vf)
-        return V
+        return V.real
 
     N, M, d = 5, 10000, 3
     Fs = 1000  # The sampling frequency we use for the simulation
@@ -203,28 +226,28 @@ if __name__ == "__main__":
     
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=0, Lambda=0)
+    nmf = ShiftNMF(X, 5, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
+    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=1500, tau_iter=0, Lambda=0.1)
     
     
     fig, ax = plt.subplots(1, 2)
     ax[0].imshow(tau)
-    ax[1].imshow(tau_est.real)
+    ax[1].imshow(tau_est)
     plt.show()
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(W_est)
-    # ax[1].imshow(W)
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(W)
+    ax[1].imshow(W_est)
     
-    # plt.show()
+    plt.show()
     
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].plot(H_est.T)
-    # ax[1].plot(H.T)
+    fig, ax = plt.subplots(1, 2)
+    ax[0].plot(H.T)
+    ax[1].plot(H_est.T)
     
-    # # ax[1].plot(inv_softplus(H).T)
+    # ax[1].plot(inv_softplus(H).T)
     
-    # plt.show()
+    plt.show()
     
     # fig, ax = plt.subplots(3, 1)
     # ax[0].plot(X.T)

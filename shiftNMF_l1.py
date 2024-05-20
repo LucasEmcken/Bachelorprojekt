@@ -30,15 +30,14 @@ class ShiftNMF(torch.nn.Module):
 
         self.softplus = torch.nn.Softplus()
         # self.inv_softplus = inv_softplus(bias=1)
-        # self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
-        self.lossfn = frobeniusLoss(self.X)
+        self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         # self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
         #set W to random between 0 and 1
         self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
         # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.1)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.01)
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
@@ -56,17 +55,22 @@ class ShiftNMF(torch.nn.Module):
             self.scheduler = None
 
     def forward(self):
-        WH = torch.zeros_like(self.X)
-
-        for i in range(self.N):
-            H_rolled = torch.zeros_like(self.H)
-            for j in range(self.rank):
-                # Use torch.roll without in-place operation
-                H_rolled[j] = torch.roll(self.H[j], shifts=int(self.tau[i, j]))
-            # Calculate the product for the i-th row
-            WH[i] = torch.matmul(self.W[i], self.softplus(H_rolled))
-        
-        return WH
+        # Get half of the frequencies
+        Nf = self.M // 2 + 1
+        # Fourier transform of H along the second dimension
+        Hf = torch.fft.fft(self.softplus(self.H), dim=1)[:, :Nf]
+        # Keep only the first Nf[1] elements of the Fourier transform of H
+        # Construct the shifted Fourier transform of H
+        Hf_reverse = torch.flip(Hf[:, 1:Nf-1], dims=[1])
+        # Concatenate the original columns with the reversed columns along the second dimension
+        Hft = torch.cat((Hf, torch.conj(Hf_reverse)), dim=1)
+        f = torch.arange(0, self.M) / self.M
+        omega = torch.exp(-1j * 2 * torch.pi * torch.einsum('Nd,M->NdM', self.tau, f))
+        Wf = torch.einsum('Nd,NdM->NdM', self.W, omega)
+        # Wf = torch.einsum('Nd,NdM->NdM', self.softplus(self.W), omega)
+        # Broadcast Wf and H together
+        V = torch.einsum('NdM,dM->NM', Wf, Hft)
+        return V
     
     def fit_tau(self, update_T = True, update_W = True):
         X = np.array(self.X.detach().numpy(), dtype=np.double)
@@ -80,14 +84,17 @@ class ShiftNMF(torch.nn.Module):
         W = np.array(self.W.detach().numpy(), dtype=np.double)
 
         T, A = estT(X,W,H, Lambda = self.Lambda)
+        # T, A = estT(X, W, H, tau, Lambda = self.Lambda)
         # W = inv_softplus(W.real)
 
-        self.tau = torch.tensor(T, dtype=torch.double)
+        if update_T:
+            self.tau = torch.tensor(T, dtype=torch.double)
         # self.tau = torch.tensor(T, dtype=torch.cdouble)
 
         # self.W = torch.nn.Parameter(W)
-        self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
-
+        if update_W:
+            self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
+            
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100, Lambda=0):
         self.Lambda = Lambda
         running_loss = []
@@ -111,8 +118,19 @@ class ShiftNMF(torch.nn.Module):
             self.optimizer.step()
 
             # Update W and tau
-            if (self.iters%25) == 0:
+            if (self.iters%25) == 0 and self.iters > tau_iter:
+                #print loss before updating tau
+                output = self.forward()
+                loss_pre = self.lossfn(output)
+                print(f"epoch: {len(running_loss)}, Loss: {loss_pre.item()}, Tau: {torch.norm(self.tau)}")
                 self.fit_tau(update_T = True, update_W = True)
+                #print loss after updating tau
+                output = self.forward()
+                loss_pos = self.lossfn(output)
+                print(f"epoch: {len(running_loss)}, Loss: {loss_pos.item()}, Tau: {torch.norm(self.tau)}")
+                if loss_pos > loss_pre:
+                    print("HERE")
+                print('-'*50)
 
             if self.scheduler != None:
                 self.scheduler.step(loss)
@@ -130,6 +148,7 @@ class ShiftNMF(torch.nn.Module):
         W = self.W.detach().numpy()
         H = (self.softplus(self.H)*self.std).detach().numpy()
         tau = self.tau.detach().numpy()
+        tau = np.array(tau, dtype=np.int32)
 
         output = self.forward()
         self.recon = torch.fft.ifft(output)*self.std
@@ -174,8 +193,10 @@ if __name__ == "__main__":
 
     W = np.random.dirichlet(np.ones(d), N)
 
-    shift = 200
+    shift = 1
+    # Random gaussian shifts
     tau = np.random.randint(-shift, shift, size=(N, d))
+    # tau = np.random.randn(N, d)*shift
     tau = np.array(tau, dtype=np.int32)
 
     mean = [1500, 5000, 8500]
@@ -186,12 +207,45 @@ if __name__ == "__main__":
 
     X = shift_dataset(W, H, tau)
         
+    # X  = pd.read_csv("X_duplet.csv").to_numpy()
+
+    # X = np.pad(X, ((0, 0), (1000, 1000)), 'edge')
+    
+    # plt.plot(X.T)
+    # plt.show()
+    # exit()
+    
     alpha = 1e-5
     noc = 3
     nmf = ShiftNMF(X, 3, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=0, Lambda=0)
+    W_est, H_est, tau_est = nmf.fit(verbose=0, max_iter=750, tau_iter=0, Lambda=0)
     
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(tau)
-    ax[1].imshow(tau_est.real)
-    plt.show()
+    
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].imshow(tau)
+    # ax[1].imshow(tau_est)
+    # plt.show()
+    
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].imshow(W_est)
+    # ax[1].imshow(W)
+    
+    # plt.show()
+    
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].plot(H.T)
+    # ax[1].plot(H_est.T)
+    
+    # # ax[1].plot(inv_softplus(H).T)
+    
+    # plt.show()
+    
+    # fig, ax = plt.subplots(3, 1)
+    # ax[0].plot(X.T)
+    # ax[1].plot(nmf.recon.detach().numpy().T)
+    # ax[2].plot(np.dot(W_est, H_est).T)
+    # plt.show()
+    
+    # plt.imshow(tau.real)
+    # plt.imshow(W)
+    # plt.show()
