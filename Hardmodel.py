@@ -4,61 +4,64 @@ from torch.optim import Adam, lr_scheduler
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss, VolLoss
 import scipy
-
+import numpy as np
 
 torch.manual_seed(3)
 
 torch.autograd.set_detect_anomaly(True)
 
 class Hard_Model(torch.nn.Module):
-    def __init__(self, X, init_means, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
+    def __init__(self, X, H, peak_means, peak_sigmas, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
         super().__init__()
+        means = []
+        mult = []
+        sigma = []
+        J_coup = []
 
-        rank = len(init_means)
-        n_row, n_col = X.shape
+        for hyp in H:
+            means.append(np.mean([peak_means[i] for i in hyp]))
+            mult.append(len(hyp))
+            sigma.append(np.mean([peak_sigmas[i] for i in hyp]))
+            if len(hyp) > 1:
+                J_coup.append(peak_means[hyp[1]]-peak_means[hyp[0]])
+            else:
+                J_coup.append(1000)
+
+
+        rank = len(means)
+        self.X = torch.tensor(X)
+        if len(X.shape) == 1:
+            self.X = torch.unsqueeze(self.X,dim=0)
+            n_row = 1
+            n_col = X.shape[0]
+            
+        #n_row, n_col = X.shape
         self.softplus = torch.nn.Softplus()
         self.softmax = torch.nn.Softmax()
         self.n_row = n_row # nr of samples
         self.n_col = n_col
         self.rank = rank
         
-        self.X = torch.tensor(X)
+        
         self.std = torch.std(self.X)
         self.X = self.X/self.std
         
-        #self.lossfn = frobeniusLoss(torch.tensor(self.X))
         self.lossfn = frobeniusLoss(self.X.clone().detach())
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         #Weights of each component
-        # true_W  = torch.tensor(pd.read_csv("W.csv").to_numpy()/self.std, dtype=torch.float)
-        # self.W = torch.nn.Parameter(true_W, requires_grad=True)
         self.W = torch.nn.Parameter(torch.rand(n_row, rank, requires_grad=True))
-        # print(torch.mean(self.X, dim=0).shape)
-       
-        #self.means = torch.nn.Parameter(torch.tensor([(i+1/2)*n_col/rank for i in range(rank+1)], requires_grad=True,dtype=torch.double))
-        # self.sigma = torch.nn.Parameter(torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)*200)
-        # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
-        
-        self.sigma = torch.nn.Parameter(torch.tensor([300,100,200], requires_grad=True,dtype=torch.float32))
-        # self.sigma = torch.nn.Parameter(torch.tensor([100,300,50], requires_grad=True,dtype=torch.float32))
-        self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
-        #self.multiplicity = torch.nn.Parameter(torch.randn(rank, 1, requires_grad=True))
-
-        #self.means = torch.nn.Parameter(torch.tensor([1000, 4000, 8000.], requires_grad=True,dtype = torch.float32))
-        self.means = torch.tensor(init_means,dtype = torch.float32)
-        # self.sigma = torch.nn.Parameter(torch.tensor([100,50,150], requires_grad=True,dtype=torch.double))
-        # self.spacing = torch.nn.Parameter(torch.tensor([100,100,100], requires_grad=True,dtype=torch.double))
-        # #
+        self.sigma = torch.nn.Parameter(torch.tensor(sigma, requires_grad=True,dtype=torch.float32))
+        self.spacing = torch.nn.Parameter(torch.tensor(J_coup, requires_grad=True,dtype=torch.float32))
+        self.means = torch.tensor(means,dtype = torch.float32)
         print("initial values:")
         print(self.means)
         print(self.sigma)
         print(self.spacing)
-        #Highest multiplicity available
-        max_multiplicity = 5
-        self.multiplicity = torch.nn.Parameter(torch.rand(rank, max_multiplicity, requires_grad=True,dtype=torch.double))
-        #self.multiplicity = torch.nn.Parameter(torch.tensor([[0,10,0,0,0],[0,10,0,0,0],[0,10,0,0,0]], requires_grad=True,dtype=torch.float32))
-        self.mult = torch.linspace(1,max_multiplicity,max_multiplicity, dtype=torch.int32)
+
+        self.multiplicity = torch.tensor(mult,dtype=torch.int32)
+        print(self.multiplicity)
+        print(self.multiplicity[0])
         #self.multiplicity = torch.tensor([2,2,2])
         
         #self.H = torch.nn.Parameter(torch.randn(rank, n_col, requires_grad=True))
@@ -66,15 +69,12 @@ class Hard_Model(torch.nn.Module):
 
         # print(torch.mean(self.X, dim=0).shape
 
-        #self.optimizer = Adam(self.parameters(), lr=lr)
-        self.optimizer = Adam([self.multiplicity, self.W], lr=lr)
-
+        self.optimizer = Adam(self.parameters(), lr=lr)
+        
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
-        self.w_optimizer = Adam([self.W, self.sigma], lr=lr)
-        self.mult_optimizer  = Adam([self.multiplicity], lr=lr)
-        
+        self.w_optimizer = Adam([self.W], lr=lr)
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
         
@@ -122,13 +122,12 @@ class Hard_Model(torch.nn.Module):
         self.C = torch.zeros((self.rank, self.n_col))
         
         for i in range(self.rank):
-            for j in range(len(self.mult)):
-                self.C[i] += self.softmax(self.multiplicity[i])[j]*self.multiplet(time,
-                                        self.mult[j],
-                                        self.means[i],
-                                        torch.clamp(self.sigma[i],1),
-                                        self.softplus(self.spacing[i]),
-                                        type="lorentz")
+            self.C[i] += self.multiplet(time,
+                                    self.multiplicity[i],
+                                    self.means[i],
+                                    torch.clamp(self.sigma[i],1),
+                                    self.softplus(self.spacing[i]),
+                                    type="lorentz")
         
         WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
         return WC
@@ -154,13 +153,9 @@ class Hard_Model(torch.nn.Module):
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
-            # # zero optimizer gradient
-            #self.optimizer.zero_grad()
 
-            # self.fit_grad(self.peak_position_optimizer)
             self.fit_grad(self.w_optimizer)
-            self.fit_grad(self.mult_optimizer)
-            #self.fit_grad(self.optimizer)
+            self.fit_grad(self.optimizer)
             # # forward
             output = self.forward()
 

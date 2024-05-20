@@ -5,6 +5,7 @@ from torch.optim import Adam, lr_scheduler
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss, VolLoss
 import scipy
+import itertools
 from scipy.signal import find_peaks, find_peaks_cwt, ricker, cwt
 
 
@@ -12,7 +13,7 @@ torch.manual_seed(4)
 
 torch.autograd.set_detect_anomaly(True)
 
-class Hard_Model(torch.nn.Module):
+class Single_Model(torch.nn.Module):
     def __init__(self, X, init_means, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
         super().__init__()
 
@@ -119,7 +120,7 @@ class Hard_Model(torch.nn.Module):
             grad.step()
             stopper.track_loss(loss)
             improvement_stopper.track_loss(loss)
-        print(f"Loss: {loss.item()}")
+
 
     def fit(self, verbose=False, return_loss=False):
         running_loss = []
@@ -152,8 +153,8 @@ class Hard_Model(torch.nn.Module):
 
             # print loss
             if verbose:
-                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}")
-                # print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
+                #print(f"epoch: {len(running_loss)}, Loss: {loss.item()}")
+                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
 
         W = self.softplus(self.W).detach().numpy()
         C = self.C.detach().numpy()
@@ -183,46 +184,43 @@ if __name__ == "__main__":
     # target_labels = mat.get('yLabels')
     # axis = mat.get("Axis")
     from helpers.data import X_WINE
+
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
+    X = X[5]
     
-    def calc_sigma():
-        X  = pd.read_csv("X_duplet.csv").to_numpy()
-        X = X[5]
-        # X = X_WINE[1,:3000]
-        # print(X.shape)
-        # plt.plot(X)
-        # plt.show()
+    def single_fit(X):
+        
+
         alpha = 1e-7
-        #peaks = [500, 1500, 3500,4500,7500,8500]
-        #peaks = find_peaks_cwt(X, [100,500,1000])
+        #find peaks in the sample
         peaks, _ = find_peaks(X)
         print("peaks:"+str(peaks))
-        model = Hard_Model(X, peaks, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
+        model = Single_Model(X, peaks, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
         W, C = model.fit(verbose=True)
 
-        # plt.figure()
-        # for vec in C:
-        #     plt.plot(vec)
-        # plt.title("C")
-        # plt.show()
+        mean = model.means.detach().numpy()
+        sigmas = model.sigma.detach().numpy()
 
-        # plt.plot(model.X.detach().numpy()[0])
-        # plt.plot(np.matmul(W,C)[0])
-        # plt.show()
-        return model.sigma.detach().numpy()
+        return mean, sigmas
 
     from scipy import stats
 
-
-    
-
     # Choose two numbers from your list
-    numbers = calc_sigma()
-    sigma_matrix = np.array([numbers])
-    for i in range(10):
-        numbers = calc_sigma()
-        sigma_matrix = np.append(sigma_matrix, [numbers], axis=0)
+   
+    def calc_sigma_matrix(nr_runs=10):
+        mean, sigmas = single_fit(X)
+        sigma_matrix = np.array([sigmas])
+        for i in range(nr_runs-1):
+            means, sigmas = single_fit(X)
+            sigma_matrix = np.append(sigma_matrix, [sigmas], axis=0)
+        return sigma_matrix
         
-    print(sigma_matrix.shape)
+    def calc_difference_matrix(sigmas):
+        diff_matrix = np.zeros((len(sigmas),len(sigmas)))
+        for i in range(len(sigmas)):
+            for j in range(len(sigmas)):
+                diff_matrix[i,j] = abs(sigmas[i]-sigmas[j])/sigmas[i]
+        return diff_matrix
 
     def calculate_t_test(sigma_matrix):
         nr_samples, nr_peaks = sigma_matrix.shape
@@ -237,8 +235,41 @@ if __name__ == "__main__":
                 p_matrix[i,j] = p_value
                 p_matrix[j,i] = p_value
         return t_matrix, p_matrix
+    # sigma_matrix = calc_sigma_matrix()
+    # t_matrix, p_matrix = calculate_t_test(sigma_matrix)
+    # print(f"t-statistic: {t_matrix}")
+    # print(f"p-value: {p_matrix}")
 
-    t_matrix, p_matrix = calculate_t_test(sigma_matrix)
+    means, sigmas = single_fit(X)
+    diff_matrix = calc_difference_matrix(sigmas)
 
-    print(f"t-statistic: {t_matrix}")
-    print(f"p-value: {p_matrix}")
+    
+    #must be a nr_peaks x nr_peaks matrix with the a measurement of how close the peaks are related.
+    def peak_hypothesis(value_matrix, cutoff= 5/100):
+        H = set()
+        for i,peaks in enumerate(value_matrix):
+            peaks = peaks.tolist()
+            valid_peaks = set()
+            for peak_index, peak in enumerate(peaks):
+                if peak < cutoff:
+                    valid_peaks.add(peak_index)
+            for combination_length in range(1,len(valid_peaks)+1):
+                for h in itertools.combinations(valid_peaks, combination_length):
+                    H.add(tuple(sorted(h)))
+        return H
+
+    hypothesis = peak_hypothesis(diff_matrix)
+    print(hypothesis)
+    from Hardmodel import Hard_Model
+
+    model = Hard_Model(X, hypothesis, means, sigmas, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
+    W, C = model.fit(verbose=True)
+    for vec in C:
+        plt.plot(vec)
+    plt.title("C")
+    plt.show()
+
+    plt.plot(model.X.detach().numpy())
+    plt.plot(np.matmul(W,C).T)
+    plt.show()
+
