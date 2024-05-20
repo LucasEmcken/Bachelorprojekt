@@ -96,12 +96,12 @@ if __name__ == '__main__':
     
     
     
-    plt.plot(X.T)
-    plt.show()
+    # plt.plot(X.T)
+    # plt.show()
     best_fit = np.linalg.norm(X - X_noisy,'fro')
 
     # Range of number of components
-    components_range = range(5, 10)
+    components_range = range(1, 10)
 
     noise_errors = []
     stds = []
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         for repeat in range(3):
             print(f'round {repeat}')
             model = ShiftNMF(X_noisy, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=750, tau_iter=0, Lambda=0)
+            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=750, tau_iter=0, Lambda=0.5)
             
             X_est = shift_dataset(W_est, H_est, tau_est)
             noise_error = np.linalg.norm(X - X_est,'fro')

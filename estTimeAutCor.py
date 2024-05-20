@@ -40,7 +40,7 @@ def estTimeAutCor(Xf, A, Sf, krSf, krf, Tau, Nf, N, w, TauW):
                 Tau[d] = ind - sSf - 1
                 
                 # A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf + Lambda[d])
-                A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf)
+                # A[k, d] = C[ind] / (np.sum(w * (krSf[d, :] * np.conj(krSf[d, :]))) / sSf)
                 
                 if abs(Tau[d]) > (sSf / 2):
                     if Tau[d] > 0:
@@ -102,12 +102,13 @@ def estT(X,W,H, Tau=None, Lambda=0):
     # Tau = Tau - np.mean(Tau, axis=0)
     
     #update A by nnls REMOVE to estimate with estTimeAutCor
+    H_shifted = np.zeros_like(H)
     for i in range(N[0]):
-        H_shifted = np.zeros_like(H)
         for j in range(H.shape[0]):
             H_shifted[j] = np.roll(H[j], int(Tau[i,j]))
     
-        A[i] = nnls(H_shifted.T.real, X[i].real, Lambda, A[i].real)
+        A[i] = nnls(H_shifted.T, X[i], Lambda, A[i])
+        # print(H_shifted.T.real.shape, X[i].real.shape, A[i].real.shape)
     
     return Tau, A
 
