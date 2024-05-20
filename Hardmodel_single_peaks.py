@@ -8,7 +8,7 @@ import scipy
 from scipy.signal import find_peaks, find_peaks_cwt, ricker, cwt
 
 
-torch.manual_seed(3)
+torch.manual_seed(4)
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -54,7 +54,7 @@ class Hard_Model(torch.nn.Module):
         # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
         
         self.sigma = torch.nn.Parameter(torch.tensor(sigmas, requires_grad=True,dtype=torch.float32))
-        self.N = torch.nn.Parameter(torch.ones(rank, requires_grad=True,dtype=torch.float32))
+        self.N = torch.nn.Parameter(torch.zeros(rank, requires_grad=True,dtype=torch.float32))
         # self.sigma = torch.nn.Parameter(torch.tensor([100, 100, 300, 300,50,50], requires_grad=True,dtype=torch.float32))
         #self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
 
@@ -183,30 +183,62 @@ if __name__ == "__main__":
     # target_labels = mat.get('yLabels')
     # axis = mat.get("Axis")
     from helpers.data import X_WINE
-    X  = pd.read_csv("X_duplet.csv").to_numpy()
-    X = X[5]
-    # X = X_WINE[1,:3000]
-    print(X.shape)
-    plt.plot(X)
-    plt.show()
-    alpha = 1e-7
-    #peaks = [500, 1500, 3500,4500,7500,8500]
-    #peaks = find_peaks_cwt(X, [100,500,1000])
-    peaks, _ = find_peaks(X)
-    print("peaks:"+str(peaks))
-    model = Hard_Model(X, peaks, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
-    W, C = model.fit(verbose=True)
+    
+    def calc_sigma():
+        X  = pd.read_csv("X_duplet.csv").to_numpy()
+        X = X[5]
+        # X = X_WINE[1,:3000]
+        # print(X.shape)
+        # plt.plot(X)
+        # plt.show()
+        alpha = 1e-7
+        #peaks = [500, 1500, 3500,4500,7500,8500]
+        #peaks = find_peaks_cwt(X, [100,500,1000])
+        peaks, _ = find_peaks(X)
+        print("peaks:"+str(peaks))
+        model = Hard_Model(X, peaks, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
+        W, C = model.fit(verbose=True)
 
-    plt.figure()
-    for vec in C:
-        plt.plot(vec)
-    plt.title("C")
-    plt.show()
+        # plt.figure()
+        # for vec in C:
+        #     plt.plot(vec)
+        # plt.title("C")
+        # plt.show()
 
-    plt.plot(model.X.detach().numpy()[0])
-    plt.plot(np.matmul(W,C)[0])
-    plt.show()
+        # plt.plot(model.X.detach().numpy()[0])
+        # plt.plot(np.matmul(W,C)[0])
+        # plt.show()
+        return model.sigma.detach().numpy()
 
-    # for xt in model.X.detach().numpy():
-    #     plt.plot(xt)
-    # plt.show()
+    from scipy import stats
+
+
+    
+
+    # Choose two numbers from your list
+    numbers = calc_sigma()
+    sigma_matrix = np.array([numbers])
+    for i in range(10):
+        numbers = calc_sigma()
+        sigma_matrix = np.append(sigma_matrix, [numbers], axis=0)
+        
+    print(sigma_matrix.shape)
+
+    def calculate_t_test(sigma_matrix):
+        nr_samples, nr_peaks = sigma_matrix.shape
+        # Conduct a t-test
+        t_matrix = np.zeros((nr_peaks,nr_peaks))
+        p_matrix = np.zeros((nr_peaks,nr_peaks))
+        for i in range(nr_peaks):
+            for j in range(nr_peaks):
+                t_statistic, p_value = stats.ttest_ind(sigma_matrix[:,i], sigma_matrix[:,j])
+                t_matrix[i,j] = t_statistic
+                t_matrix[j,i] = t_statistic
+                p_matrix[i,j] = p_value
+                p_matrix[j,i] = p_value
+        return t_matrix, p_matrix
+
+    t_matrix, p_matrix = calculate_t_test(sigma_matrix)
+
+    print(f"t-statistic: {t_matrix}")
+    print(f"p-value: {p_matrix}")

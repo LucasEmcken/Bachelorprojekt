@@ -1,10 +1,10 @@
 # Byte-compiled / optimized / DLL files
-**__pycache__/
+**/__pychache/** */
 *.py[cod]
 *$py.class
 *.pyc
 *.npy
-*.cpython-310.pyc
+
 # C extensions
 *.so
 **.__pycache__/
@@ -135,3 +135,5 @@ dmypy.json
 **/__pycache__/
 helpers/__pycache__/losses.cpython-310.pyc
 helpers/__pycache__/callbacks.cpython-310.pyc
+/helpers/__pycache__
+**/__pycache__
