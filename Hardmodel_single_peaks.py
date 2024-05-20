@@ -264,8 +264,10 @@ if __name__ == "__main__":
 
     model = Hard_Model(X, hypothesis, means, sigmas, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
     W, C = model.fit(verbose=True)
-    for vec in C:
-        plt.plot(vec)
+    plt.plot(model.X.detach().numpy())
+    print(W)
+    for i, vec in enumerate(C):
+        plt.plot(vec*W[:,i])
     plt.title("C")
     plt.show()
 
