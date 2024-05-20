@@ -5,6 +5,8 @@ from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss, VolLoss
 import scipy
 import numpy as np
+from nnls_l1 import nnls
+
 
 torch.manual_seed(3)
 
@@ -74,7 +76,7 @@ class Hard_Model(torch.nn.Module):
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
-        self.w_optimizer = Adam([self.W], lr=lr)
+        # self.w_optimizer = Adam([self.W], lr=lr)
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
         
@@ -149,12 +151,27 @@ class Hard_Model(torch.nn.Module):
 
     def fit(self, verbose=False, return_loss=False):
         running_loss = []
-        
+        iters = 0
+
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
-
-            self.fit_grad(self.w_optimizer)
+            # self.fit_grad(self.w_optimizer)
+            
+            iters +=1
+            #fit W by nnls
+            if iters > 1:
+                W_new = torch.zeros_like(self.W)
+                for i in range(self.n_row):
+                    C_T = self.C.T.detach().numpy()
+                    X_i = self.X[i].detach().numpy()
+                    
+                    W = nnls(C_T, X_i, alpha=0.1)
+                    
+                    W_new[i] = torch.tensor(W)
+                
+                self.W = torch.nn.Parameter(W_new)
+            
             self.fit_grad(self.optimizer)
             # # forward
             output = self.forward()
