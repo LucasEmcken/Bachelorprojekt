@@ -37,7 +37,7 @@ class Hard_Model(torch.nn.Module):
             n_row = 1
             n_col = X.shape[0]
             
-        #n_row, n_col = X.shape
+        n_row, n_col = X.shape
         self.softplus = torch.nn.Softplus()
         self.softmax = torch.nn.Softmax()
         self.n_row = n_row # nr of samples

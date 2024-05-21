@@ -14,12 +14,13 @@ torch.manual_seed(4)
 torch.autograd.set_detect_anomaly(True)
 
 class Single_Model(torch.nn.Module):
-    def __init__(self, X, init_means, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
+    def __init__(self, X, init_means, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6, relative_height=0.75):
         super().__init__()
 
         rank = len(init_means)
         print(scipy.signal.peak_prominences(X,init_means, wlen=2000)[0])
-        sigmas = scipy.signal.peak_widths(X, init_means, wlen=1000)[0]/2 #.355*1.5    
+        sigmas = scipy.signal.peak_widths(X, init_means, wlen=1000, rel_height=relative_height)[0]/2 #.355*1.5
+        sigmas += 1
         print("initial sigmas:")
         print(sigmas)
 
@@ -189,8 +190,6 @@ if __name__ == "__main__":
     X = X[5]
     
     def single_fit(X):
-        
-
         alpha = 1e-7
         #find peaks in the sample
         peaks, _ = find_peaks(X)
@@ -262,6 +261,7 @@ if __name__ == "__main__":
     print(hypothesis)
     from Hardmodel import Hard_Model
 
+    print('hardmodelling')
     model = Hard_Model(X, hypothesis, means, sigmas, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
     W, C = model.fit(verbose=True)
     plt.plot(model.X.detach().numpy())
