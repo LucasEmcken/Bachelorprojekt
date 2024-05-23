@@ -34,7 +34,7 @@ if __name__ == '__main__':
     
     #Create data
     # Define random sources, mixings and shifts; H, W and tau
-    N, M, d = 7, 10000, 5
+    N, M, d = 50, 10000, 5
     Fs = 1000  # The sampling frequency we use for the simulation
     t0 = 10    # The half-time interval we look at
     t = np.arange(-t0, t0, 1/Fs)  # the time samples
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     # N = N+3
 
     #W = np.random.rand(N, d)
-    shift = 100
+    shift = 300
     # Random gaussian shifts
     tau = np.random.randint(-shift, shift, size=(N, d))
     tau[W==0] = 0
@@ -88,17 +88,26 @@ if __name__ == '__main__':
     X = shift_dataset(W, H, tau)
 
     #scale X up 1000 times
-    X = X*1000
     
-    noise = np.random.normal(0, 0.001, X.shape)
+
+    #bootstrap samples of X along rows with replacement
+
+    noise = np.random.normal(0, 0.000005, X.shape)
+    
     # noise = np.abs(noise)
     X_noisy = X + noise
-    
-    
-    
-    # plt.plot(X.T)
-    # plt.show()
+
+    # exit()
     best_fit = np.linalg.norm(X - X_noisy,'fro')
+
+    T = 10
+    S = 15
+    X_boot = np.zeros((T,S,M))
+    
+    for i in range(T):
+        for j in range(S):
+            row = np.random.randint(0, N)
+            X_boot[i,j] = X_noisy[row]
 
     # Range of number of components
     components_range = range(1, 10)
@@ -109,23 +118,31 @@ if __name__ == '__main__':
     for k in components_range:
         print(f'fitting with components = {k}')
         temp_noise = []
-        for repeat in range(3):
+        for repeat in range(10):
+            
+            X_boot_noisy = X_boot[repeat] + np.random.normal(0, 0.000005, X_boot[repeat].shape)
+            
+            #add noise
+            # X_boot_noisy = X_boot + np.random.normal(0, 0.000005, X_boot.shape)
+            
             print(f'round {repeat}')
-            model = ShiftNMF(X_noisy, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=750, tau_iter=0, Lambda=0.5)
+            model = ShiftNMF(X_boot_noisy, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
+            W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=1000, tau_iter=0, Lambda=0.1)
             
             X_est = shift_dataset(W_est, H_est, tau_est)
-            noise_error = np.linalg.norm(X - X_est,'fro')
+            noise_error = np.linalg.norm(X_boot[repeat] - X_est,'fro')
             temp_noise.append(noise_error)
             
-        noise_errors.append(np.mean(temp_noise))
-        stds.append(np.std(temp_noise))
+        noise_errors.append(temp_noise)
+        # stds.append(np.std(temp_noise))
 
     # Plotting the results
     plt.figure(figsize=(10, 6))
     # plt.plot(components_range, autocorrelations, marker='o')
     
-    plt.errorbar(components_range, noise_errors, yerr=stds, fmt='o')
+    # plt.errorbar(components_range, noise_errors, yerr=stds, fmt='o')
+    #mat a boxchart of the noise errors
+    plt.boxplot(noise_errors)
     plt.title('Noise error vs number of components')
     plt.xlabel('Number of components')
     plt.ylabel('Noise error')

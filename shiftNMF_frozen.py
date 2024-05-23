@@ -46,7 +46,7 @@ class ShiftNMF(torch.nn.Module):
         #set W to random between 0 and 1
         self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
         # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.01)
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         # self.tau = lambda: self.tau_tilde
