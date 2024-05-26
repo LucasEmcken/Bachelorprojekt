@@ -13,21 +13,33 @@ torch.manual_seed(3)
 torch.autograd.set_detect_anomaly(True)
 
 class Hard_Model(torch.nn.Module):
-    def __init__(self, X, H, peak_means, peak_sigmas, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
+    def __init__(self, X, H, peak_means, peak_sigmas, peak_n, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
         super().__init__()
         means = []
         mult = []
         sigma = []
         J_coup = []
+        n = []
+        print("hypothesises:")
+        print(H)
 
         for hyp in H:
-            means.append(np.mean([peak_means[i] for i in hyp]))
-            mult.append(len(hyp))
-            sigma.append(np.mean([peak_sigmas[i] for i in hyp]))
             if len(hyp) > 1:
-                J_coup.append(peak_means[hyp[1]]-peak_means[hyp[0]])
+                if peak_means[hyp[1]]-peak_means[hyp[0]]<2000:
+                    means.append(np.mean([peak_means[i] for i in hyp]))
+                    mult.append(len(hyp))
+                    sigma.append(np.mean([peak_sigmas[i] for i in hyp]))
+                    n.append(np.mean([peak_n[i] for i in hyp]))
+                    if len(hyp) > 1:
+                        J_coup.append(peak_means[hyp[1]]-peak_means[hyp[0]])
+                    else:
+                        J_coup.append(0)
             else:
-                J_coup.append(1000)
+                means.append(np.mean([peak_means[i] for i in hyp]))
+                mult.append(len(hyp))
+                sigma.append(np.mean([peak_sigmas[i] for i in hyp]))
+                n.append(np.mean([peak_n[i] for i in hyp]))
+                J_coup.append(0)
 
 
         rank = len(means)
@@ -36,8 +48,9 @@ class Hard_Model(torch.nn.Module):
             self.X = torch.unsqueeze(self.X,dim=0)
             n_row = 1
             n_col = X.shape[0]
-            
-        n_row, n_col = X.shape
+        else:
+            n_row, n_col = X.shape
+        
         self.softplus = torch.nn.Softplus()
         self.softmax = torch.nn.Softmax()
         self.n_row = n_row # nr of samples
@@ -53,17 +66,25 @@ class Hard_Model(torch.nn.Module):
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         #Weights of each component
         self.W = torch.nn.Parameter(torch.rand(n_row, rank, requires_grad=True))
-        self.sigma = torch.nn.Parameter(torch.tensor(sigma, requires_grad=True,dtype=torch.float32))
-        self.spacing = torch.nn.Parameter(torch.tensor(J_coup, requires_grad=True,dtype=torch.float32))
-        self.means = torch.tensor(means,dtype = torch.float32)
+        self.sigma = torch.nn.Parameter(torch.tensor(sigma, requires_grad=False,dtype=torch.float32))
+        self.spacing = torch.nn.Parameter(torch.tensor(J_coup, requires_grad=False,dtype=torch.float32))
+        self.means = torch.tensor(means,dtype = torch.float32, requires_grad=False)
+        self.N = torch.tensor(n, dtype=torch.float32, requires_grad=False)
+        print("")
         print("initial values:")
+        print("means:")
         print(self.means)
+        print("sigmas:")
         print(self.sigma)
+        print("spacing(J-coupling):")
         print(self.spacing)
 
-        self.multiplicity = torch.tensor(mult,dtype=torch.int32)
+        self.multiplicity = torch.tensor(mult,dtype=torch.int32, requires_grad=False)
+        print("multiplicity:")
         print(self.multiplicity)
-        print(self.multiplicity[0])
+        print("voigt N:")
+        print(self.N)
+
         #self.multiplicity = torch.tensor([2,2,2])
         
         #self.H = torch.nn.Parameter(torch.randn(rank, n_col, requires_grad=True))
@@ -79,6 +100,8 @@ class Hard_Model(torch.nn.Module):
         # self.w_optimizer = Adam([self.W], lr=lr)
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
+
+        self.forward()
         
         if factor < 1:
             self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-5)
@@ -100,8 +123,10 @@ class Hard_Model(torch.nn.Module):
         return 1 / (torch.pi * variance * (1 + ((x - mean) / variance) ** 2))
     def gauss(self, x, mean, variance):
         return 1/(variance*(2*torch.pi)**(1/2))*torch.exp(-1/2*((x-mean)/variance)**2)
+    def voigt(self, x, mean, variance, n):
+        return n*self.lorentzian(x,mean,variance)+(1-n)*self.gauss(x,mean,variance)
 
-    def multiplet(self, x, mult, mean, sigma, spacing, type='lorentz'):
+    def multiplet(self, x, mult, mean, sigma, spacing, n):
         triangle = self.pascal(mult)
         t_max = torch.max(triangle)
         triangle = triangle/t_max
@@ -112,16 +137,13 @@ class Hard_Model(torch.nn.Module):
         else:
             space = -1*(mult-1)/2*spacing
         for i,size in enumerate(triangle):
-            if type == 'lorentz':
-                y += self.lorentzian(x, mean+space, sigma)*size
-            else:
-                y += self.gauss(x, mean+space, sigma)*size
-            space +=  spacing
+                y += self.voigt(x, mean+space, sigma, n)*size
+                space +=  spacing
         return y
 
     def forward(self):
         time = torch.linspace(0,self.n_col,self.n_col)
-        self.C = torch.zeros((self.rank, self.n_col))
+        self.C = torch.zeros((self.rank, self.n_col),requires_grad=False)
         
         for i in range(self.rank):
             self.C[i] += self.multiplet(time,
@@ -129,7 +151,9 @@ class Hard_Model(torch.nn.Module):
                                     self.means[i],
                                     torch.clamp(self.sigma[i],1),
                                     self.softplus(self.spacing[i]),
-                                    type="lorentz")
+                                    torch.sigmoid(self.N[i]))
+            C_new = self.C[i].detach()/torch.max(self.C[i].detach())
+            self.C[i] = C_new
         
         WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
         return WC
@@ -151,28 +175,25 @@ class Hard_Model(torch.nn.Module):
 
     def fit(self, verbose=False, return_loss=False):
         running_loss = []
-        iters = 0
 
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
             # self.fit_grad(self.w_optimizer)
             
-            iters +=1
-            #fit W by nnls
-            if iters > 1:
-                W_new = torch.zeros_like(self.W)
-                for i in range(self.n_row):
-                    C_T = self.C.T.detach().numpy()
-                    X_i = self.X[i].detach().numpy()
-                    
-                    W = nnls(C_T, X_i, alpha=0.1)
-                    
-                    W_new[i] = torch.tensor(W)
+
+            W_new = torch.zeros_like(self.W)
+            for i in range(self.n_row):
+                C_T = self.C.T.detach().numpy()
+                X_i = self.X[i].detach().numpy()
                 
-                self.W = torch.nn.Parameter(W_new)
+                W = nnls(C_T, X_i, alpha=0.1)
+                
+                W_new[i] = torch.tensor(W)
             
-            self.fit_grad(self.optimizer)
+            self.W = torch.nn.Parameter(W_new)
+            
+            #self.fit_grad(self.optimizer)
             # # forward
             output = self.forward()
 
