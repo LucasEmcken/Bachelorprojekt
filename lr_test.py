@@ -21,13 +21,13 @@ print("starting")
 print(model_name)
 print(data_name)
 
-lrs = [1, 0.1, 0.01]
-
+#lrs = [1, 0.1, 0.01]
+lrs = [0.1]
 nr_tests = 10
 losses = np.zeros((len(lrs),nr_tests))
 
 alpha = 1e-5
-min_imp = 0.001
+min_imp = 0.0001
 
 for i, lr in enumerate(lrs):
     print("learning rate:" + str(lr))
@@ -38,8 +38,8 @@ for i, lr in enumerate(lrs):
             model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=10, min_imp=min_imp)
         if model_name == "OPT_NMF":
             from shiftNMF_frozen import ShiftNMF
-            model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=10, min_imp=min_imp)
-        returns = model.fit(verbose=True, return_loss=True, max_iter=500)
+            model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=50, min_imp=min_imp)
+        returns = model.fit(verbose=True, return_loss=True, max_iter=5000)
         loss = returns[-1]
         losses[i,it] = loss[-1]
 
