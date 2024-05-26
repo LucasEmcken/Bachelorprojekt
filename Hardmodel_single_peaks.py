@@ -7,23 +7,20 @@ from helpers.losses import frobeniusLoss, VolLoss
 import scipy
 import itertools
 from scipy.signal import find_peaks, find_peaks_cwt, ricker, cwt
-
+import numpy as np
+from sklearn.model_selection import GridSearchCV
+from scipy.optimize import brute
 
 torch.manual_seed(4)
 
 torch.autograd.set_detect_anomaly(True)
 
 class Single_Model(torch.nn.Module):
-    def __init__(self, X, init_means, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6, relative_height=0.75):
+    def __init__(self, X, init_means, init_sigma, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
         super().__init__()
 
+        
         rank = len(init_means)
-        print(scipy.signal.peak_prominences(X,init_means, wlen=2000)[0])
-        sigmas = scipy.signal.peak_widths(X, init_means, wlen=1000, rel_height=relative_height)[0]/2 #.355*1.5
-        sigmas += 1
-        print("initial sigmas:")
-        print(sigmas)
-
         self.X = torch.tensor(X)
 
         if len(X.shape) == 1:
@@ -55,7 +52,7 @@ class Single_Model(torch.nn.Module):
         # self.sigma = torch.nn.Parameter(torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)*200)
         # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
         
-        self.sigma = torch.nn.Parameter(torch.tensor(sigmas, requires_grad=True,dtype=torch.float32))
+        self.sigma = torch.nn.Parameter(torch.tensor(init_sigma, requires_grad=True,dtype=torch.float32))
         self.N = torch.nn.Parameter(torch.zeros(rank, requires_grad=True,dtype=torch.float32))
         # self.sigma = torch.nn.Parameter(torch.tensor([100, 100, 300, 300,50,50], requires_grad=True,dtype=torch.float32))
         #self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
@@ -66,8 +63,6 @@ class Single_Model(torch.nn.Module):
         # self.spacing = torch.nn.Parameter(torch.tensor([100,100,100], requires_grad=True,dtype=torch.double))
         # #
 
-        
-
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
@@ -76,12 +71,33 @@ class Single_Model(torch.nn.Module):
         
         self.peak_position_optimizer  = Adam([self.means, self.N], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.N], lr=lr)
+
+        self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
+
+        for i, sigma in enumerate(self.sigma.detach().numpy()):
+            self.peak_i = i
+            rranges = (slice(sigma/2,sigma*2, (sigma*2-sigma/2)/20), slice(-4, 4, 1/20))
+
+            result = brute(self.evaluate, rranges) #[(sigma/2,sigma*2),(0,1)])
+            print("sigma: "+str(result[0])+" n:"+str(1/ ( 1+np.exp(-1*result[1]) ) ) )
+
+            new_sigma = result[0]
+            new_N = result[1]
+            with torch.no_grad():
+                self.sigma[i] = new_sigma
+                self.N[i] = new_N
         
         if factor < 1:
             self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-5)
         else:
             self.scheduler = None
 
+
+    def evaluate(self,z):
+        sigma, n = z
+        output = self.forward_specified(sigma,n)
+        loss = self.lossfn.forward(output)
+        return loss.detach().numpy()
 
 
     def lorentzian(self, x, mean, variance):
@@ -92,6 +108,20 @@ class Single_Model(torch.nn.Module):
     def voigt(self, x, mean, variance, n):
         return n*self.lorentzian(x,mean,variance)+(1-n)*self.gauss(x,mean,variance)
 
+    def forward_specified(self, sigma, N):
+        time = torch.linspace(0,self.n_col,self.n_col)
+        self.C = torch.zeros((self.rank, self.n_col))
+        local_sigma = self.sigma.detach()
+        local_N = self.N.detach()
+        local_sigma[self.peak_i] = sigma
+        local_N[self.peak_i] = N
+        
+        for i in range(self.rank):
+            self.C[i] += self.voigt(time,
+                                    self.means[i],
+                                    torch.clamp(local_sigma[i],1), torch.sigmoid(local_N[i]))
+        WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
+        return WC
 
     def forward(self):
         time = torch.linspace(0,self.n_col,self.n_col)
@@ -192,15 +222,32 @@ if __name__ == "__main__":
     def single_fit(X):
         alpha = 1e-7
         #find peaks in the sample
-        peaks, _ = find_peaks(X)
-        print("peaks:"+str(peaks))
-        model = Single_Model(X, peaks, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
+        #peaks = find_peaks_cwt(X, widths=[100, 300])
+        peaks = find_peaks(X, height=1e-8)[0]
+        
+
+        sigmas = scipy.signal.peak_widths(X, peaks, wlen=1000)[0]/2 #.355*1.5
+        select = [prom>10 for prom in sigmas]
+        select = [i for i, x in enumerate(select) if x == False]
+        sigmas = np.delete(sigmas, select)
+        peaks = np.delete(np.array(peaks), select)
+        print("initial means:")
+        print(peaks)
+        print("initial sigmas:")
+        print(sigmas)
+        # peaks,_  = find_peaks(X)
+        print("Found peaks:"+str(peaks))
+        model = Single_Model(X, peaks, sigmas, lr=5, alpha = alpha, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
         W, C = model.fit(verbose=True)
+        plt.plot(X/np.std(X))
+        plt.plot(np.matmul(W,C).T)
+        plt.show()
 
         mean = model.means.detach().numpy()
         sigmas = model.sigma.detach().numpy()
+        n = model.N.detach().numpy()
 
-        return mean, sigmas
+        return mean, sigmas, n
 
     from scipy import stats
 
@@ -239,12 +286,12 @@ if __name__ == "__main__":
     # print(f"t-statistic: {t_matrix}")
     # print(f"p-value: {p_matrix}")
 
-    means, sigmas = single_fit(X)
+    means, sigmas, n = single_fit(X)
     diff_matrix = calc_difference_matrix(sigmas)
 
     
     #must be a nr_peaks x nr_peaks matrix with the a measurement of how close the peaks are related.
-    def peak_hypothesis(value_matrix, cutoff= 5/100):
+    def peak_hypothesis(value_matrix, cutoff= 10/100):
         H = set()
         for i,peaks in enumerate(value_matrix):
             peaks = peaks.tolist()
@@ -262,17 +309,18 @@ if __name__ == "__main__":
     from Hardmodel import Hard_Model
 
     print('hardmodelling')
-    model = Hard_Model(X, hypothesis, means, sigmas, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
+    print(sigmas)
+    model = Hard_Model(X, hypothesis, means, sigmas, n, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
     W, C = model.fit(verbose=True)
-    plt.plot(model.X.detach().numpy())
     print("W:")
     print(W)
+    plt.plot(X/np.std(X), linewidth=5)
     for i, vec in enumerate(C):
         plt.plot(vec*W[:,i])
-    plt.title("C")
+    plt.title("C*W")
     plt.show()
 
-    plt.plot(model.X.detach().numpy())
-    plt.plot(np.matmul(W,C).T)
-    plt.show()
+    # plt.plot(model.X.detach().numpy())
+    # plt.plot(np.matmul(W,C).T)
+    # plt.show()
 
