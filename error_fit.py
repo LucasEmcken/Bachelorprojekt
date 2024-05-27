@@ -69,7 +69,7 @@ if __name__ == '__main__':
     # N = N+3
 
     #W = np.random.rand(N, d)
-    shift = 300
+    shift = 500
     # Random gaussian shifts
     tau = np.random.randint(-shift, shift, size=(N, d))
     tau[W==0] = 0
@@ -103,11 +103,13 @@ if __name__ == '__main__':
     T = 10
     S = 15
     X_boot = np.zeros((T,S,M))
+    X_boot_noise = np.zeros((T,S,M))
     
     for i in range(T):
         for j in range(S):
             row = np.random.randint(0, N)
-            X_boot[i,j] = X_noisy[row]
+            X_boot[i,j] = X[row]
+            X_boot_noise[i,j] = X_noisy[row]
 
     # Range of number of components
     components_range = range(1, 10)
@@ -120,13 +122,13 @@ if __name__ == '__main__':
         temp_noise = []
         for repeat in range(10):
             
-            X_boot_noisy = X_boot[repeat] + np.random.normal(0, 0.000005, X_boot[repeat].shape)
+            curr_boot = X_boot[repeat]
             
             #add noise
             # X_boot_noisy = X_boot + np.random.normal(0, 0.000005, X_boot.shape)
             
             print(f'round {repeat}')
-            model = ShiftNMF(X_boot_noisy, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
+            model = ShiftNMF(curr_boot, k, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
             W_est,H_est,tau_est, running_loss_hybrid = model.fit(verbose=True, return_loss=True, max_iter=1000, tau_iter=0, Lambda=0.1)
             
             X_est = shift_dataset(W_est, H_est, tau_est)
@@ -149,4 +151,5 @@ if __name__ == '__main__':
     #make a horizontal line at the best level
     best_fit = np.linalg.norm(X - X_noisy,'fro')
     plt.axhline(y=best_fit, color='r', linestyle='-')
+    plt.legend(['Best theoretical fit'])
     plt.show()

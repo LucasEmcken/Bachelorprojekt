@@ -16,9 +16,13 @@ def generateTauWMatrix(TauW, N2):
         TauWMatrix[d, -1:(-int(TauW[d, 0]) - 1):-1] = 1
 
     return TauWMatrix
+import torch
+import numpy as np
+from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.5, min_imp=1e-6):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.5, min_imp=1e-6, Lambda=0):
         super().__init__()
 
         self.rank = rank
@@ -29,29 +33,19 @@ class ShiftNMF(torch.nn.Module):
         self.N, self.M = X.shape
 
         self.softplus = torch.nn.Softplus()
-        # self.inv_softplus = inv_softplus(bias=1)
-        # self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
+        self.softmax = torch.nn.Softmax(dim=1)
         self.lossfn = frobeniusLoss(self.X)
+        self.Lambda = Lambda
         
-        # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        # self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
-        #set W to random between 0 and 1
-        self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
-        # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
+        # Initialization of Tensors/Matrices NxR and RxM
+        self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double)*torch.max(self.X))
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double)*0.1)
-        self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
-        # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
-        # self.tau = lambda: self.tau_tilde
+        self.tau = torch.zeros(self.N, self.rank, dtype=torch.double)
 
-        self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
-        
-        self.optimizer = Adam([self.H], lr=lr)
-        # self.optimizer = Adam([self.W], lr=lr)
-        # self.optimizer = Adam([self.W, self.H], lr=lr)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
+        self.optimizer = Adam([self.W, self.H], lr=lr)
         
         if factor < 1:
-            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-2)
+            self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-2)
         else:
             self.scheduler = None
 
@@ -61,83 +55,65 @@ class ShiftNMF(torch.nn.Module):
         for i in range(self.N):
             H_rolled = torch.zeros_like(self.H)
             for j in range(self.rank):
-                # Use torch.roll without in-place operation
                 H_rolled[j] = torch.roll(self.H[j], shifts=int(self.tau[i, j]))
-            # Calculate the product for the i-th row
-            WH[i] = torch.matmul(self.W[i], self.softplus(H_rolled))
+            WH[i] = torch.matmul(self.softplus(self.W[i]),
+                                 self.softmax(H_rolled))
         
         return WH
     
-    def fit_tau(self, update_T = True, update_W = True):
+    def fit_tau(self):
         X = np.array(self.X.detach().numpy(), dtype=np.double)
-        
-        # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
-        H = np.array(self.softplus(self.H).detach().numpy(), dtype=np.double)
-        
+        H = np.array(self.softmax(self.H).detach().numpy(), dtype=np.double)
         tau = np.array(self.tau.detach().numpy(), dtype=np.double)
-        
-        # W = np.zeros((self.N, self.rank))
         W = np.array(self.W.detach().numpy(), dtype=np.double)
 
-        T, A = estT(X,W,H, Lambda = self.Lambda)
-        # W = inv_softplus(W.real)
+        T, A = estT(X, W, H, tau)
 
         self.tau = torch.tensor(T, dtype=torch.double)
-        # self.tau = torch.tensor(T, dtype=torch.cdouble)
+        # self.W.data = torch.tensor(A, dtype=torch.double)
 
-        # self.W = torch.nn.Parameter(W)
-        self.W = torch.nn.Parameter(torch.tensor(A,  dtype=torch.double))
-
-    def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100, Lambda=0):
-        self.Lambda = Lambda
+    def fit(self, verbose=False, return_loss=False, max_iter=15000, tau_iter=100):
         running_loss = []
         self.iters = 0
         self.tau_iter = tau_iter
-        #while not self.stopper.trigger() and self.iters < max_iter and not self.improvement_stopper.trigger():
+
         while self.iters < max_iter:
             self.iters += 1
-            # zero optimizer gradient
+
             self.optimizer.zero_grad()
-
-            # forward
             output = self.forward()
-
-            # backward
-            loss = self.lossfn(output)
-            
+            loss = self.lossfn(output) + self.Lambda * torch.sum(self.softplus(self.W))
             loss.backward()
-
-            # Update H
             self.optimizer.step()
 
-            # Update W and tau
-            if (self.iters%25) == 0:
-                self.fit_tau(update_T = True, update_W = True)
+            if (self.iters % tau_iter) == 0:
+                self.fit_tau()
 
-            if self.scheduler != None:
+            if self.scheduler is not None:
                 self.scheduler.step(loss)
             
             running_loss.append(loss.item())
-            # self.stopper.track_loss(loss)
-            # self.improvement_stopper.track_loss(loss)
-            
-            # print loss
+
             if verbose:
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}", end='\r')
+        
         if verbose:
-                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}")
+            print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}")
 
-        W = self.W.detach().numpy()
-        H = (self.softplus(self.H)*self.std).detach().numpy()
+        W = self.softplus(self.W).detach().numpy()
+        H = (self.softmax(self.H) * self.std).detach().numpy()
         tau = self.tau.detach().numpy()
 
         output = self.forward()
-        self.recon = torch.fft.ifft(output)*self.std
+        self.recon = torch.fft.ifft(output) * self.std
 
         if return_loss:
             return W, H, tau, running_loss
         else:
             return W, H, tau
+
+# You may need to define the frobeniusLoss and estT functions as per your requirement
+
 
 if __name__ == "__main__":
     import pandas as pd
@@ -188,10 +164,21 @@ if __name__ == "__main__":
         
     alpha = 1e-5
     noc = 3
-    nmf = ShiftNMF(X, 3, lr=0.1, alpha=1e-6, patience=1000, min_imp=0)
-    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=0, Lambda=0)
+    nmf = ShiftNMF(X, 3, lr=1, alpha=1e-6, patience=1000, min_imp=0, Lambda = 0)
+    W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=750, tau_iter=25)
     
     fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(tau)
-    ax[1].imshow(tau_est.real)
+    # ax[0].imshow(tau)
+    # ax[1].imshow(tau_est.real)
+    
+    ax[0].imshow(W)
+    ax[1].imshow(W_est)
+    
+    plt.show()
+    
+    fig, ax = plt.subplots(2, 1)
+    
+    ax[0].plot(np.matmul(W, H).T)
+    ax[1].plot(np.matmul(W_est, H_est).T)
+    
     plt.show()
