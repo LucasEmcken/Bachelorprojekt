@@ -173,7 +173,7 @@ class Hard_Model(torch.nn.Module):
             improvement_stopper.track_loss(loss)
         print(f"Loss: {loss.item()}")
 
-    def fit(self, verbose=False, return_loss=False):
+    def fit(self, verbose=False, return_loss=False, alpha=0.1):
         running_loss = []
 
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
@@ -187,7 +187,7 @@ class Hard_Model(torch.nn.Module):
                 C_T = self.C.T.detach().numpy()
                 X_i = self.X[i].detach().numpy()
                 
-                W = nnls(C_T, X_i, alpha=0.1)
+                W = nnls(C_T, X_i, alpha=alpha)
                 
                 W_new[i] = torch.tensor(W)
             
