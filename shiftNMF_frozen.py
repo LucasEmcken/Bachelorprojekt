@@ -30,27 +30,16 @@ class ShiftNMF(torch.nn.Module):
 
         # self.softplus = torch.nn.Softplus()
         self.softplus = torch.nn.Softmax(dim=1)
-        #custom softmax function to sum to n instead of 1
-        # def softmax(x, dim=1, n=1):
-        #     """Compute softmax values for each vector x in input."""
-        #     e_x = torch.exp(x - torch.max(x, dim=dim, keepdim=True)[0])
-        #     e_x = n* e_x
-        #     return e_x / e_x.sum(dim=dim, keepdim=True)
-
         
         # self.inv_softplus = inv_softplus(bias=1)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        # self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
-        #set W to random between 0 and 1
         self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
         # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
-        # self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
-        # self.tau = lambda: self.tau_tilde
-
+        
         self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
         
         self.optimizer = Adam([self.H], lr=lr)
