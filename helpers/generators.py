@@ -18,7 +18,10 @@ def lorentzian(x, mean, variance):
 def gauss(x, mean, variance):
     return 1/(variance*np.sqrt(2*np.pi))*np.exp(-1/2*((x-mean)/variance)**2)
 
-def multiplet(x, mult, mean, sigma, spacing, type='lorentz'):
+def voigt(x, mean, variance, n):
+        return n*lorentzian(x,mean,variance)+(1-n)*gauss(x,mean,variance)
+
+def multiplet(x, mult, mean, sigma, spacing, n=0.5):
     triangle = pascal(mult)
     t_max = max(triangle)
     triangle = [t/t_max for t in triangle]
@@ -29,12 +32,9 @@ def multiplet(x, mult, mean, sigma, spacing, type='lorentz'):
     else:
         space = -1*(len(triangle)-1)/2*spacing
     for i,size in enumerate(triangle):
-        if type == 'lorentz':
-            y += lorentzian(x, mean+space, sigma)*size
-        else:
-            y += gauss(x, mean+space, sigma)*size
+        y += voigt(x, mean+space, sigma, n)*size
         space +=  spacing
-    return y
+    return np.array(y)
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     Y = multiplet(x,5, 5, 1, 20)
 
     plt.plot(x, Y)
-    plt.title('Lorentzian Function')
+    plt.title('')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.grid(True)

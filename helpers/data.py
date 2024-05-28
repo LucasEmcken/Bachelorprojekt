@@ -52,3 +52,63 @@ def inv_normalize_data(target, std):
     # return target * std + mean
     #same as above
     return target * std
+
+### ARTIFICIAL DATASET
+
+
+N, M, d = 30, 20000, 3
+
+t = np.arange(0, M, 1)
+
+def shift_dataset(W, H, tau):
+    # Get half the frequencies
+    Nf = H.shape[1] // 2 + 1
+    # Fourier transform of S along the second dimension
+    Hf = np.fft.fft(H, axis=1)
+    # Keep only the first Nf[1] elements of the Fourier transform of S
+    Hf = Hf[:, :Nf]
+    # Construct the shifted Fourier transform of S
+    Hf_reverse = np.fliplr(Hf[:, 1:Nf - 1])
+    # Concatenate the original columns with the reversed columns along the second dimension
+    Hft = np.concatenate((Hf, np.conj(Hf_reverse)), axis=1)
+    f = np.arange(0, M) / M
+    omega = np.exp(-1j * 2 * np.pi * np.einsum('Nd,M->NdM', tau, f))
+    Wf = np.einsum('Nd,NdM->NdM', W, omega)
+    # Broadcast Wf and H together
+    Vf = np.einsum('NdM,dM->NM', Wf, Hft)
+    V = np.fft.ifft(Vf)
+    return V
+
+np.random.seed(42)
+
+# Random mixings:
+W = np.random.dirichlet(np.ones(d), N)
+# W = np.append(W, [[1,0,0]], axis=0)
+# W = np.append(W, [[0,1,0]], axis=0)
+# W = np.append(W, [[0,0,1]], axis=0)
+# N = N+3
+
+#W = np.random.rand(N, d)
+shift = 1
+# Random gaussian shifts
+tau = np.random.randint(-shift, shift, size=(N, d))
+tau = np.zeros((N,d))
+tau = np.random.randint(-1000, 1000, size=(N, d))
+# Purely positive underlying signals. I define them as 3 gaussian peaks with random mean and std.
+H = np.zeros((d,M))
+from helpers.generators import *
+H[0] = multiplet(t, 3, 6000, 150, 900)+multiplet(t, 1, 12000, 150, 0)
+H[1] = multiplet(t, 2, 2000, 150, 800)+multiplet(t, 2, 14000, 240, 1200)
+H[2] = multiplet(t, 3, 18000, 300, 1300)+multiplet(t, 4, 12000, 120, 800)
+H_ART = H
+W_ART = W
+TAU_ART = tau
+X_ART = shift_dataset(W, H, tau)
+NOISE_ART = np.random.normal(0, 5e-6, X_ART.shape)
+
+X_ART_NOISY = X_ART + NOISE_ART
+
+
+
+
+
