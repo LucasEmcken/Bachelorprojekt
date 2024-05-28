@@ -6,6 +6,7 @@ from helpers.losses import frobeniusLoss, VolLoss
 import scipy
 import numpy as np
 from nnls_l1 import nnls
+from nlars import calc_scoring
 
 
 torch.manual_seed(3)
@@ -52,7 +53,7 @@ class Hard_Model(torch.nn.Module):
             n_row, n_col = X.shape
         
         self.softplus = torch.nn.Softplus()
-        self.softmax = torch.nn.Softmax()
+        # self.softmax = torch.nn.Softmax()
         self.n_row = n_row # nr of samples
         self.n_col = n_col
         self.rank = rank
@@ -155,7 +156,8 @@ class Hard_Model(torch.nn.Module):
             C_new = self.C[i].detach()/torch.max(self.C[i].detach())
             self.C[i] = C_new
         
-        WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
+        # WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
+        WC = torch.matmul(self.W, self.C)
         return WC
     
     def fit_grad(self, grad):
@@ -173,6 +175,12 @@ class Hard_Model(torch.nn.Module):
             improvement_stopper.track_loss(loss)
         print(f"Loss: {loss.item()}")
 
+    def fit_W(self):
+        W = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=False, maxK=1)
+        W = torch.tensor(W)
+        self.W = torch.nn.Parameter(W)
+        
+    
     def fit(self, verbose=False, return_loss=False, alpha=0.1):
         running_loss = []
 
@@ -180,6 +188,7 @@ class Hard_Model(torch.nn.Module):
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
             # self.fit_grad(self.w_optimizer)
+            self.fit_W()
             
 
             W_new = torch.zeros_like(self.W)
