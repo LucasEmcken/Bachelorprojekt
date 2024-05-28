@@ -71,7 +71,7 @@ class ShiftNMF(torch.nn.Module):
         return V
     
     def fit_tau(self, update_T = True, update_W = True):
-        X = np.array(self.X.detach().numpy(), dtype=np.double)
+        X = np.array(self.X.detach().numpy().real, dtype=np.double)
         
         # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
         H = np.array(self.softmax(self.H).detach().numpy(), dtype=np.double)
