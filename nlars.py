@@ -90,6 +90,9 @@ def NLARS(XtX, Xty, inc_path=False, maxK=np.inf):
         
         # Update beta                       
         beta[A] = beta[A] + mu * w
+        
+        #enforce non-negativity
+        beta[beta < 0] = 0
 
         # Check whether an active element has reached zero
         if len(gamma1) <= t < len(gamma1) + len(gamma2):

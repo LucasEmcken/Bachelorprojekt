@@ -176,31 +176,32 @@ class Hard_Model(torch.nn.Module):
         print(f"Loss: {loss.item()}")
 
     def fit_W(self):
-        W = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=False, maxK=1)
-        W = torch.tensor(W)
+        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True)
+        W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
-        
+        return path, lambdas
     
     def fit(self, verbose=False, return_loss=False, alpha=0.1):
         running_loss = []
 
+        
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
             # self.fit_grad(self.w_optimizer)
-            self.fit_W()
+            path, lambdas = self.fit_W()
             
 
-            W_new = torch.zeros_like(self.W)
-            for i in range(self.n_row):
-                C_T = self.C.T.detach().numpy()
-                X_i = self.X[i].detach().numpy()
+            # W_new = torch.zeros_like(self.W)
+            # for i in range(self.n_row):
+            #     C_T = self.C.T.detach().numpy()
+            #     X_i = self.X[i].detach().numpy()
                 
-                W = nnls(C_T, X_i, alpha=alpha)
+            #     W = nnls(C_T, X_i, alpha=alpha)
                 
-                W_new[i] = torch.tensor(W)
+            #     W_new[i] = torch.tensor(W)
             
-            self.W = torch.nn.Parameter(W_new)
+            # self.W = torch.nn.Parameter(W_new)
             
             #self.fit_grad(self.optimizer)
             # # forward
@@ -224,14 +225,15 @@ class Hard_Model(torch.nn.Module):
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}")
                 # print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
 
-        W = self.softplus(self.W).detach().numpy()
+        # W = self.softplus(self.W).detach().numpy()
+        W = self.W.detach().numpy()
         C = self.C.detach().numpy()
         print(self.means)
         print(self.softplus(self.sigma))
         print(self.multiplicity)
         print(self.softplus(self.spacing))
         if return_loss:
-            return W, C, running_loss
+            return W, C, running_loss, path, lambdas
         else:
             return W, C
 

@@ -311,7 +311,7 @@ if __name__ == "__main__":
     print('hardmodelling')
     print(sigmas)
     model = Hard_Model(X, hypothesis, means, sigmas, n, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01) # min_imp=1e-3)
-    W, C = model.fit(verbose=True)
+    W, C, _, path, lambdas = model.fit(verbose=True, return_loss=True)
     print("W:")
     print(W)
     plt.plot(X/np.std(X), linewidth=5)
@@ -320,6 +320,11 @@ if __name__ == "__main__":
     plt.title("C*W")
     plt.show()
 
+    print(lambdas)
+    print(path)
+    plt.plot(lambdas[0], path[0].T)
+    plt.show()
+        
     # plt.plot(model.X.detach().numpy())
     # plt.plot(np.matmul(W,C).T)
     # plt.show()
