@@ -45,7 +45,7 @@ for i, lr in enumerate(lrs):
         returns = model.fit(verbose=True, return_loss=True, max_iter=5000)
         loss = returns[-1]
         losses[it] = loss[-1]
-    np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(nr_components)+"_"+str(lr)+"_"+"lr_test",losses)
+    np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(lr)+"_"+str(nr_components)+"_"+"lr_test",losses)
 
 print(lrs)
 print(np.mean(losses,axis=1).flatten())
