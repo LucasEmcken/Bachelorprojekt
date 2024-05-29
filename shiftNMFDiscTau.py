@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.9, min_imp=1e-6):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-8, factor=0.9, min_imp=1e-6, patience=10):
         super().__init__()
 
         self.rank = rank
@@ -28,13 +28,13 @@ class ShiftNMF(torch.nn.Module):
         self.tau = lambda: self.tau_tilde
         
         # Prøv også med SGD
-        self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
+        self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         
         self.optimizer = Adam(self.parameters(), lr=lr)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         if factor < 1:
-            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-2)
+            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience)
         else:
             self.scheduler = None
 

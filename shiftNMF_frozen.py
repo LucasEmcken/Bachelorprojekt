@@ -18,7 +18,7 @@ def generateTauWMatrix(TauW, N2):
     return TauWMatrix
 
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-4, factor=1, min_imp=1e-3):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-4, factor=1, min_imp=1e-3, patience=10):
         super().__init__()
 
         self.rank = rank
@@ -40,15 +40,15 @@ class ShiftNMF(torch.nn.Module):
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         
-        self.stopper = ChangeStopper(alpha=alpha, patience=10)
+        self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         
         self.optimizer = Adam([self.H], lr=lr)
         # self.optimizer = Adam([self.W], lr=lr)
         # self.optimizer = Adam([self.W, self.H], lr=lr)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=10)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         if factor < 1:
-            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=5)
+            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience)
         else:
             self.scheduler = None
 
