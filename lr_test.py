@@ -24,16 +24,16 @@ print("starting")
 print(model_name)
 print(data_name)
 
-#lrs = [1, 0.1, 0.01]
-lrs = [0.1]
+lrs = [0.1, 0.01, 1]
+
 nr_tests = 10
-losses = np.zeros((len(lrs),nr_tests))
 
 alpha = 1e-5
 min_imp = 0.0001
 
 for i, lr in enumerate(lrs):
     print("learning rate:" + str(lr))
+    losses = np.zeros((nr_tests))
     for it in range(nr_tests):
         print("iteration: "+str(it)+" out of "+str(nr_tests))
         if model_name == "DISC_NMF":
@@ -44,7 +44,8 @@ for i, lr in enumerate(lrs):
             model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=30, min_imp=min_imp)
         returns = model.fit(verbose=True, return_loss=True, max_iter=5000)
         loss = returns[-1]
-        losses[i,it] = loss[-1]
+        losses[it] = loss[-1]
+    np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(nr_components)+"_"+str(lr)+"_"+"lr_test",losses)
 
 print(lrs)
 print(np.mean(losses,axis=1).flatten())
@@ -57,6 +58,6 @@ print("DONE")
     # plt.suptitle('Categorical Plotting')
     # plt.savefig("lr_test_"+str(model_name)+"_"+str(data_name)+"_"+str(comp_nr))
 
-np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(nr_components)+"_"+"lr_test",losses)
+
 
 
