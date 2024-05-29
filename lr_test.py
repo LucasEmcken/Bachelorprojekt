@@ -14,7 +14,7 @@ if data_name == "alko":
     X = X_ALKO
 if data_name == "art":
     from helpers.data import X_ART
-    X = X_ALKO
+    X = X_ART
 if data_name == "wine":
     from helpers.data import X_WINE
     X = X_WINE
@@ -24,8 +24,8 @@ print("starting")
 print(model_name)
 print(data_name)
 
-lrs = [1, 0.1, 0.01]
-# lrs = [0.1]
+#lrs = [1, 0.1, 0.01]
+lrs = [0.1]
 nr_tests = 10
 losses = np.zeros((len(lrs),nr_tests))
 
