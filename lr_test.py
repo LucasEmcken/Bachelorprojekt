@@ -47,10 +47,7 @@ for i, lr in enumerate(lrs):
         losses[it] = loss[-1]
     np.save("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(lr)+"_"+str(nr_components)+"_"+"lr_test",losses)
 
-print(lrs)
-print(np.mean(losses,axis=1).flatten())
-print("all losses")
-print(losses)
+
 print("DONE")
     # plt.ylabel("average loss")
     # plt.xlabel("Learning rate")
