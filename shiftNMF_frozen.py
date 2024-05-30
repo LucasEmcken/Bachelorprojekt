@@ -8,14 +8,6 @@ from helpers.losses import frobeniusLoss
 from helpers.initializers import PCA_init
 # import matplotlib.pyplot as plt
 
-def generateTauWMatrix(TauW, N2):
-    TauWMatrix = np.zeros((TauW.shape[0], N2))
-
-    for d in range(TauW.shape[0]):
-        TauWMatrix[d, 0:int(TauW[d, 1])] = 1
-        TauWMatrix[d, -1:(-int(TauW[d, 0]) - 1):-1] = 1
-
-    return TauWMatrix
 
 class ShiftNMF(torch.nn.Module):
     def __init__(self, X, rank, lr=0.2, alpha=1e-4, factor=1, min_imp=1e-3, patience=10):
