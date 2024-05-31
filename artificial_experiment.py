@@ -1,5 +1,5 @@
-#from shiftNMF_frozen import ShiftNMF
-from shiftNMFDiscTau import ShiftNMF
+from shiftNMF_frozen import ShiftNMF
+#from shiftNMFDiscTau import ShiftNMF
 from nnls_l1 import nnls
 import numpy as np
 import pandas as pd
@@ -18,8 +18,10 @@ from helpers.fit_functions import *
 nmf = ShiftNMF(X_ART_NOISY, 3, lr=0.1, alpha=1e-6, patience=30, min_imp=0.001)
 W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=2000, tau_iter=0)
 
+
 plt.plot(H_est.T)
 plt.savefig("shiftcomponents")
+plt.clf()
 
 for i in range(len(H_est)):
     means, sigmas, n = single_fit(H_est[i])
@@ -37,3 +39,4 @@ for i in range(len(H_est)):
         plt.plot(vec*W[:,j])
     plt.title("Component "+str(i)+" hardmodelled")
     plt.savefig("fig"+str(i))
+    plt.clf()
