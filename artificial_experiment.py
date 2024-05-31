@@ -42,5 +42,5 @@ for i in range(len(H_est)):
     plt.clf()
     plt.title("Component "+str(i)+" regulization path")
     plt.plot(lambdas[0], path[0].T)
-    plt.savefig("fig"+str(i))
+    plt.savefig("fig"+str(i)+"_path")
     plt.clf()
