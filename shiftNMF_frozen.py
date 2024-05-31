@@ -6,6 +6,7 @@ from estTimeAutCor import estT
 from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
 from helpers.initializers import PCA_init
+from torchrl.modules.utils import inv_softplus
 # import matplotlib.pyplot as plt
 
 
@@ -20,23 +21,21 @@ class ShiftNMF(torch.nn.Module):
         
         self.N, self.M = X.shape
 
-        # self.softplus = torch.nn.Softplus()
         self.softmax = torch.nn.Softmax(dim=1)
-        
-        # self.inv_softplus = inv_softplus(bias=1)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.rand(self.N, rank, requires_grad=True, dtype=torch.double))
-        # self.W = torch.ones(self.N, rank, requires_grad=True, dtype=torch.double) + 1
+        self.W = torch.nn.Parameter(torch.ones(self.N, rank, requires_grad=True, dtype=torch.double))
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
+        #self.H = torch.tensor(PCA_init(X.T.real, rank).real.T, requires_grad=True, dtype=torch.double)
+        self.H = torch.nn.Parameter(inv_softplus(self.H))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         
         self.optimizer = Adam([self.H], lr=lr)
         # self.optimizer = Adam([self.W], lr=lr)
-        # self.optimizer = Adam([self.W, self.H], lr=lr)
+        self.full_optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         if factor < 1:
@@ -83,7 +82,7 @@ class ShiftNMF(torch.nn.Module):
 
         # self.W = torch.nn.Parameter(W)
         if update_W:
-            self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double))
+            self.W = torch.nn.Parameter(torch.tensor(A, dtype=torch.double, requires_grad=True))
     
     def center_tau(self):
         tau = self.tau.detach().numpy()
@@ -103,6 +102,19 @@ class ShiftNMF(torch.nn.Module):
         
         self.tau = torch.tensor(tau, dtype=torch.double)
         self.H = torch.nn.Parameter(H_roll)
+    def fit_grad(self, grad):
+        stopper = ChangeStopper(alpha=1e-5, patience=5)
+        improvement_stopper = ImprovementStopper(min_improvement=1e-5, patience=5)
+
+        while not stopper.trigger() and not improvement_stopper.trigger():
+            grad.zero_grad()
+            output = self.forward()
+            loss = self.lossfn.forward(output)
+            print(f"Loss: {loss.item()}", end='\r')
+            loss.backward()
+            grad.step()
+            stopper.track_loss(loss)
+            improvement_stopper.track_loss(loss)
     
     def fit(self, verbose=False, return_loss=False, max_iter = 15000, tau_iter=100, Lambda=0):
         self.Lambda = Lambda
@@ -153,7 +165,7 @@ class ShiftNMF(torch.nn.Module):
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}", end='\r')
         if verbose:
                 print(f"epoch: {len(running_loss)}, Loss: {loss.item()}, Tau: {torch.norm(self.tau)}")
-        
+        #self.fit_grad(self.full_optimizer)
         self.center_tau()
         
         W = self.W.detach().numpy()
