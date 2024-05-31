@@ -28,7 +28,7 @@ class ShiftNMF(torch.nn.Module):
         self.W = torch.nn.Parameter(torch.ones(self.N, rank, requires_grad=True, dtype=torch.double))
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         #self.H = torch.tensor(PCA_init(X.T.real, rank).real.T, requires_grad=True, dtype=torch.double)
-        self.H = torch.nn.Parameter(inv_softplus(self.H))
+        #self.H = torch.nn.Parameter(inv_softplus(self.H))
         self.tau = torch.zeros(self.N, self.rank,dtype=torch.double)
         
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
