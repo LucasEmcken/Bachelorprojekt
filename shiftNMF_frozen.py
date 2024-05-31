@@ -34,7 +34,6 @@ class ShiftNMF(torch.nn.Module):
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         
         self.optimizer = Adam([self.H], lr=lr)
-        # self.optimizer = Adam([self.W], lr=lr)
         self.full_optimizer = Adam([self.W, self.H], lr=lr)
         self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
