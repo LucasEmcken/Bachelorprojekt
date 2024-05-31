@@ -29,7 +29,7 @@ for i in range(len(H_est)):
     diff_matrix = calc_difference_matrix(np.ones((len(sigmas))))
     hypothesis = peak_hypothesis(diff_matrix, cutoff=10/100)
     hardmodel = Hard_Model(H_est[i], hypothesis, means, sigmas, n, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01)
-    W, C = hardmodel.fit(verbose=True, alpha=0.2)
+    W, C, running_loss, path, lambdas = hardmodel.fit(verbose=True, return_loss=True)
     print("W:")
     print(W)
     ## TODO change this to be the true underlying components from H_ART not the shift found components, they need to be scaled accordingly.
@@ -38,5 +38,9 @@ for i in range(len(H_est)):
     for j, vec in enumerate(C):
         plt.plot(vec*W[:,j])
     plt.title("Component "+str(i)+" hardmodelled")
+    plt.savefig("fig"+str(i))
+    plt.clf()
+    plt.title("Component "+str(i)+" regulization path")
+    plt.plot(lambdas[0], path[0].T)
     plt.savefig("fig"+str(i))
     plt.clf()
