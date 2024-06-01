@@ -176,7 +176,7 @@ class Hard_Model(torch.nn.Module):
         print(f"Loss: {loss.item()}")
 
     def fit_W(self):
-        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=3)
+        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=5)
         W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
         return path, lambdas
