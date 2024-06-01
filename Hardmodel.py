@@ -181,7 +181,7 @@ class Hard_Model(torch.nn.Module):
         self.W = torch.nn.Parameter(W)
         return path, lambdas
     
-    def fit(self, verbose=False, return_loss=False, alpha=0.1):
+    def fit(self, verbose=False, return_loss=False):
         running_loss = []
 
         
