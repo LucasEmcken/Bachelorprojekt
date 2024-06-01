@@ -130,7 +130,7 @@ class Hard_Model(torch.nn.Module):
     def multiplet(self, x, mult, mean, sigma, spacing, n):
         triangle = self.pascal(mult)
         t_max = torch.max(triangle)
-        triangle = triangle/t_max
+        #triangle = triangle/t_max
         y = torch.zeros(len(x),dtype=float)
 
         if mult%2 == 0:
