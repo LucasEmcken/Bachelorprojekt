@@ -24,6 +24,9 @@ class Hard_Model(torch.nn.Module):
         print("hypothesises:")
         print(H)
 
+        #Number of single peaks
+        self.nr_peaks = len(peak_means)
+
         for hyp in H:
             if len(hyp) > 1:
                 if peak_means[hyp[1]]-peak_means[hyp[0]]<2000:
@@ -162,7 +165,7 @@ class Hard_Model(torch.nn.Module):
     
     def fit_grad(self, grad):
         stopper = ChangeStopper(alpha=1e-3, patience=3)
-        improvement_stopper = ImprovementStopper(min_improvement=1e-3, patience=3)
+        improvement_stopper = ImprovementStopper(min_improvement=1e-3, patience=5)
 
         while not stopper.trigger() and not improvement_stopper.trigger():
             grad.zero_grad()
@@ -176,7 +179,7 @@ class Hard_Model(torch.nn.Module):
         print(f"Loss: {loss.item()}")
 
     def fit_W(self):
-        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=5)
+        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=self.nr_peaks)
         W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
         return path, lambdas
