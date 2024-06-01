@@ -13,7 +13,9 @@ import scipy
 from scipy.signal import find_peaks
 import itertools
 from helpers.fit_functions import *
+import torch
 
+torch.manual_seed(42)
 
 nmf = ShiftNMF(X_ART_NOISY, 3, lr=0.1, alpha=1e-6, patience=30, min_imp=0.001)
 W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=2000, tau_iter=0)
