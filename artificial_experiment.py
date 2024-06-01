@@ -35,7 +35,7 @@ for i in range(len(H_est)):
     print("W:")
     print(W)
     ## TODO change this to be the true underlying components from H_ART not the shift found components, they need to be scaled accordingly.
-    plt.plot(H_est[i]/np.std(H_est[i]), linewidth=5)
+    plt.plot(H_est[i]/np.std(H_est[i]), linewidth=5, color="k")
 
     for j, vec in enumerate(C):
         plt.plot(vec*W[:,j])
