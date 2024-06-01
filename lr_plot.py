@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-data_name = "alko"
-model_name = "OPT_NMF"
-def plot_error(model_name = "OPT_NMF",data_name = "wine", lr = "0.1"):
+
+def plot_error(model_name = "OPT_NMF",data_name = "art", lr = "0.1"):
 	data = np.load("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(lr)+"_1_"+"lr_test.npy")
 	data = np.expand_dims(data,0)
 
