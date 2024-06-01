@@ -5,16 +5,15 @@ from helpers.generators import *
 from Hardmodel_single_peaks import Single_Model
 import scipy
 from scipy.signal import find_peaks
+from scipy.signal import find_peaks_cwt
 import itertools
 
 
 def single_fit(X):
         #find peaks in the sample
-        #peaks = find_peaks_cwt(X, widths=[100, 300])
-        peaks = find_peaks(X, height=max(X)/20)[0]
-        
+        peaks = find_peaks(X, height=max(X)/10)[0]
         sigmas = scipy.signal.peak_widths(X, peaks, wlen=1000)[0]/2 #.355*1.5
-        select = [prom>10 for prom in sigmas]
+        select = [sig>100 for sig in sigmas]
         select = [i for i, x in enumerate(select) if x == False]
         sigmas = np.delete(sigmas, select)
         peaks = np.delete(np.array(peaks), select)
