@@ -7,6 +7,7 @@ from helpers.callbacks import ChangeStopper, ImprovementStopper
 from helpers.losses import frobeniusLoss
 from helpers.initializers import PCA_init
 from torchrl.modules.utils import inv_softplus
+
 # import matplotlib.pyplot as plt
 
 
@@ -17,15 +18,19 @@ class ShiftNMF(torch.nn.Module):
         self.rank = rank
         self.X = torch.tensor(X)
         self.std = torch.std(self.X)
-        self.X = self.X / self.std
+        self.X_MAX = torch.max(self.X)
+        self.X = self.X / self.X_MAX  #self.std
         
         self.N, self.M = X.shape
 
         self.softmax = torch.nn.Softmax(dim=1)
+        self.softplus = torch.nn.Softplus()
+        #scale applied to self.H
+        self.scale = lambda x : self.softplus(x)/torch.max(self.softplus(x)) 
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
-        self.W = torch.nn.Parameter(torch.ones(self.N, rank, requires_grad=True, dtype=torch.double))
+        self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True, dtype=torch.double))
         self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True, dtype=torch.double))
         #self.H = torch.tensor(PCA_init(X.T.real, rank).real.T, requires_grad=True, dtype=torch.double)
         #self.H = torch.nn.Parameter(inv_softplus(self.H))
@@ -46,7 +51,7 @@ class ShiftNMF(torch.nn.Module):
         # Get half of the frequencies
         Nf = self.M // 2 + 1
         # Fourier transform of H along the second dimension
-        Hf = torch.fft.fft(self.softmax(self.H), dim=1)[:, :Nf]
+        Hf = torch.fft.fft(self.scale(self.H), dim=1)[:, :Nf]
         # Keep only the first Nf[1] elements of the Fourier transform of H
         # Construct the shifted Fourier transform of H
         Hf_reverse = torch.flip(Hf[:, 1:Nf-1], dims=[1])
@@ -64,7 +69,7 @@ class ShiftNMF(torch.nn.Module):
         X = np.array(self.X.detach().numpy().real, dtype=np.double)
         
         # W = np.array(self.softplus(self.W).detach().numpy(), dtype=np.complex128)
-        H = np.array(self.softmax(self.H).detach().numpy(), dtype=np.double)
+        H = np.array(self.scale(self.H).detach().numpy(), dtype=np.double)
         
         tau = np.array(self.tau.detach().numpy(), dtype=np.double)
         
@@ -138,7 +143,7 @@ class ShiftNMF(torch.nn.Module):
             self.optimizer.step()
 
             # Update W and tau
-            if (self.iters%25) == 0 and self.iters > tau_iter:
+            if (self.iters%20) == 0 and self.iters > tau_iter:
                 #print loss before updating tau
                 # output = self.forward()
                 # loss_pre = self.lossfn(output)
@@ -168,7 +173,7 @@ class ShiftNMF(torch.nn.Module):
         self.center_tau()
         
         W = self.W.detach().numpy()
-        H = (self.softmax(self.H)*self.std).detach().numpy()
+        H = (self.scale(self.H)*self.std).detach().numpy()
         tau = self.tau.detach().numpy()
         tau = np.array(tau, dtype=np.int32)
 
