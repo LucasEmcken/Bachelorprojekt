@@ -153,7 +153,7 @@ class Hard_Model(torch.nn.Module):
                                     torch.clamp(self.sigma[i],1),
                                     self.softplus(self.spacing[i]),
                                     torch.sigmoid(self.N[i]))
-            C_new = self.C[i].detach()/torch.max(self.C[i].detach())
+            C_new = self.C[i].detach()#/torch.max(self.C[i].detach())
             self.C[i] = C_new
         
         # WC = torch.matmul(self.softplus(self.W), self.C) #self.softplus(self.C))
