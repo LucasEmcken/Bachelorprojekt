@@ -77,7 +77,7 @@ def shift_dataset(W, H, tau):
     # Broadcast Wf and H together
     Vf = np.einsum('NdM,dM->NM', Wf, Hft)
     V = np.fft.ifft(Vf)
-    return V
+    return V.real
 
 np.random.seed(42)
 
