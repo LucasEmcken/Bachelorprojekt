@@ -184,6 +184,18 @@ class Hard_Model(torch.nn.Module):
         W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
         return path, lambdas
+
+    def return_values(self):
+        W = self.W.detach().numpy()
+        active_values = [w>0 for w in W[0]]
+        index_filter = [i for i, x in enumerate(active_values) if x]
+        means = self.means.detach().numpy()
+        sigma = self.sigma.detach().numpy()
+        j_coup = self.spacing.detach().numpy()
+        mult = self.multiplicity.detach().numpy()
+        n = torch.sigmoid(self.N).detach().numpy()
+        return means[index_filter], sigma[index_filter], j_coup[index_filter], mult[index_filter], n[index_filter]
+
     
     def fit(self, verbose=False, return_loss=False):
         running_loss = []
@@ -192,7 +204,6 @@ class Hard_Model(torch.nn.Module):
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
-            # self.fit_grad(self.w_optimizer)
             path, lambdas = self.fit_W()
             
 
@@ -207,7 +218,6 @@ class Hard_Model(torch.nn.Module):
             
             # self.W = torch.nn.Parameter(W_new)
             
-            #self.fit_grad(self.optimizer)
             # # forward
             output = self.forward()
 
@@ -232,10 +242,6 @@ class Hard_Model(torch.nn.Module):
         # W = self.softplus(self.W).detach().numpy()
         W = self.W.detach().numpy()
         C = self.C.detach().numpy()
-        print(self.means)
-        print(self.softplus(self.sigma))
-        print(self.multiplicity)
-        print(self.softplus(self.spacing))
         if return_loss:
             return W, C, running_loss, path, lambdas
         else:
