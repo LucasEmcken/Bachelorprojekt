@@ -148,3 +148,29 @@ def calc_scoring(X, H, inc_path=False, maxK=np.inf):
         lambdas.append(lambda_)
     
     return W, paths, lambdas
+
+def get_optimal_W(X, H_hyb, threshold):
+    Ws = {}
+    Loss = {}
+    optimal_W = None
+    W_optim, path, lambdas = calc_scoring(X, H_hyb, inc_path=True)
+    X = W_optim @ H_hyb
+    
+    for l in range(H_hyb.shape[0]):
+        Ws[l] = np.zeros((X.shape[0], H_hyb.shape[0]))
+        for i in range(X.shape[0]):
+            # Ws[l][i,:], _, _ = NLARS(H_hyb @ H_hyb.T, H_hyb @ X[i,:].T, maxK=l+1)
+            Ws[l][i,:], _, _ = NLARS(H_hyb @ H_hyb.T, H_hyb @ X[i,:].T, inc_path=False, maxK=l+1)
+        #calculate the frobenius loss
+        Loss[l] = np.linalg.norm(X - Ws[l] @ H_hyb, 'fro')/np.linalg.norm(X, 'fro')
+    
+    #get the path
+    
+    #set optimal W to the last W
+    optimal_W = Ws[l]
+    #find W with the highest loss still below the threshold
+    for l in range(H_hyb.shape[0]):
+        if Loss[l] <= threshold:
+            optimal_W = Ws[l]
+            break
+    return optimal_W, path, lambdas, Loss

@@ -6,7 +6,7 @@ from helpers.losses import frobeniusLoss, VolLoss
 import scipy
 import numpy as np
 from nnls_l1 import nnls
-from nlars import calc_scoring
+from nlars import calc_scoring, get_optimal_W
 
 
 torch.manual_seed(3)
@@ -178,8 +178,9 @@ class Hard_Model(torch.nn.Module):
             improvement_stopper.track_loss(loss)
         print(f"Loss: {loss.item()}")
 
-    def fit_W(self):
-        W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=self.nr_peaks)
+    def fit_W(self, threshold=0.15):
+        # W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=self.nr_peaks)
+        W, path, lambdas, loss = get_optimal_W(self.X.detach().numpy(), self.C.detach().numpy(), threshold)
         W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
         return path, lambdas
