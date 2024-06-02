@@ -4,7 +4,7 @@
 *$py.class
 *.pyc
 *.npy
-
+results/
 # C extensions
 *.so
 **.__pycache__/
