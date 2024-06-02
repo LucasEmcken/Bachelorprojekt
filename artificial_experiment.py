@@ -53,10 +53,10 @@ plt.tight_layout()
 
 
 
-plt.figure(figsize=(15,5))
-plt.plot(H_est.T)
-plt.savefig("shiftcomponents")
-plt.clf()
+# plt.figure(figsize=(15,5))
+# plt.plot(H_est.T)
+# plt.savefig("shiftcomponents")
+# plt.clf()
 ymax = 0
 for i in range(len(H_est)):
     ymax = max(ymax,H_est[i]/np.std(H_est[i]).max())
