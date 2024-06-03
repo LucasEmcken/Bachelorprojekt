@@ -9,11 +9,11 @@ from scipy.signal import find_peaks_cwt
 import itertools
 
 
-def single_fit(X):
+def single_fit(X, min_height=0.1, min_sigma=100):
         #find peaks in the sample
-        peaks = find_peaks(X, height=max(X)/10)[0]
+        peaks = find_peaks(X, height=max(X)*min_height)[0]
         sigmas = scipy.signal.peak_widths(X, peaks, wlen=1000)[0]/2 #.355*1.5
-        select = [sig>100 for sig in sigmas]
+        select = [sig>min_sigma for sig in sigmas]
         select = [i for i, x in enumerate(select) if x == False]
         sigmas = np.delete(sigmas, select)
         peaks = np.delete(np.array(peaks), select)
