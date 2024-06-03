@@ -13,8 +13,8 @@ import scipy
 from scipy.signal import find_peaks
 import itertools
 from helpers.fit_functions import *
-import torch
 from helpers.plot import *
+import torch
 
 #limit X_ART_NOISY to 15 components
 # X_ART_NOISY = X_ART_NOISY[:5]
@@ -22,7 +22,7 @@ from helpers.plot import *
 torch.manual_seed(40)
 
 nmf = ShiftNMF(X_ART_NOISY, 3, lr=0.1, alpha=1e-6, patience=30, min_imp=0.001)
-W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=2000, tau_iter=0)
+W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=500, tau_iter=0)
 
 fig = plt.figure(figsize=(10, 6))
 # Create a gridspec object with 2 rows and 3 columns
@@ -89,14 +89,14 @@ for i in range(len(H_est)):
         ax1.plot(x,vec*W[:,j]+yoffset*i)
 # Set tight layout
 plt.tight_layout()
-fig.savefig("shiftcomponents_combined")
- 
-
+plt.savefig("components_hardmodel_combined_artificial")
+plt.clf()
 
 
 for i in range(len(reg_paths)):
     path = reg_paths[i]
     lambdas = lambda_axis[i]
+    print(lambdas[0])
     C = C_path[i]
 
     fig = plt.figure(figsize=(10, 6))
@@ -106,32 +106,48 @@ for i in range(len(reg_paths)):
     # Plot H and H_est
     ax1 = plt.subplot(gs[0])
     # plotSpaced(ax1, np.arange(H_est.shape[1]), H_est.T)
-    ax1.set_title('H est')
+    ax1.set_title('Multiplet hypotheses')
+
+    ax1.set_xlabel("ppm")
+   
     x = np.arange(H_est.shape[1])
 
     ax2 = plt.subplot(gs[1])
     ax2.set_title('Regulization path')
+    ax2.set_xlabel("Lambda")
+    ax2.set_ylabel("Component weight")
 
-    ymax = 0
-    for j in range(len(C)):
-        ymax = max(ymax,(C[i]/np.std(C[i])).max())
+    ax1.tick_params(left = False, labelleft = False)
+    ax2.tick_params(left = False, labelleft = False)
+
+    ymax = 1.1
+    # for j, vec in enumerate(C):
+    #     ymax = max(ymax,(C[j]/max(C[j])).max())
+
+    cutoff = [0, 300, 300]
+
     yoffset = ymax
-
+    t = 0
     for j, vec in enumerate(C):
-        if path[0][j][0] > 0:
-            ax1.plot(x,vec*W[:,j]+yoffset*i)
+        if any(path[0][j] > cutoff[i]):
+            ax1.plot(x,vec/max(vec)+yoffset*t)
+            t += 1
 
-    ymax = 0
-    for j in range(len(C)):
-        ymax = max(ymax,(C[i]/np.std(C[i])).max())
+    
+    ymax = path[0].max()
     yoffset = ymax
-
+    t = 0
     for j, vec in enumerate(C):
-        if path[0][j][0] > 0:
-            ax2.plot(lambdas[0],path[0][j]+yoffset*i)
+        if any(path[0][j] > cutoff[i]):
+            ax2.plot(lambdas[0],path[0][j]+yoffset*t)
+            ax2.hlines(yoffset*t,lambdas[0][-1],lambdas[0][0], color="k")
+            t +=1
+    ax2.hlines(yoffset*t,lambdas[0][-1],lambdas[0][0], color="k")
 
 
 
     #plt.title("Hardmodelled component regulization path")
     #plt.plot(lambdas[0], reg_paths[i][0].T)
+    plt.tight_layout()
     plt.savefig("fig"+str(i)+"_path")
+    plt.clf()
