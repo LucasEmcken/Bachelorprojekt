@@ -52,6 +52,9 @@ ymax = 0
 for i in range(len(H_est)):
     ymax = max(ymax,(H_est[i]/np.std(H_est[i])).max())
 yoffset = ymax
+reg_paths = []
+lambda_axis = []
+C_path = []
 
 for i in range(len(H_est)):
     means, sigmas, n = single_fit(H_est[i])
@@ -61,7 +64,9 @@ for i in range(len(H_est)):
     hardmodel = Hard_Model(H_est[i], hypothesis, means, sigmas, n, lr=10, alpha = 1e-3, factor=1, patience=1, min_imp=0.01)
 
     W, C, running_loss, path, lambdas = hardmodel.fit(verbose=True, return_loss=True)
-
+    reg_paths.append(path)
+    lambda_axis.append(lambdas)
+    C_path.append(C)
     means, sigma, j_coup, mult, n = hardmodel.return_values()
     print("means:")
     print(means)
@@ -82,16 +87,53 @@ for i in range(len(H_est)):
     ax1.plot(x,H_est[i]/np.std(H_est[i])+yoffset*i, linewidth=4, color="k")
     for j, vec in enumerate(C):
         ax1.plot(x,vec*W[:,j]+yoffset*i)
-    # Set tight layout
-    plt.tight_layout()
-    fig.savefig("shiftcomponents_combined")
+# Set tight layout
+plt.tight_layout()
+fig.savefig("shiftcomponents_combined")
+plt.clf()
     
-        # plt.plot(vec*W[:,j])
-    # plt.title("Component "+str(i)+" hardmodelled")
-    # plt.savefig("fig"+str(i))
-    # plt.clf()
-    # plt.figure(figsize=(15,5))
-    # plt.title("Component "+str(i)+" regulization path")
-    # plt.plot(lambdas[0], path[0].T)
-    # plt.savefig("fig"+str(i)+"_path")
-    # plt.clf()
+
+
+
+for i in range(len(reg_paths)):
+    path = reg_paths[i]
+    lambdas = lambda_axis[i]
+    C = C_path[i]
+
+    fig = plt.figure(figsize=(10, 6))
+    # Create a gridspec object with 2 rows and 3 columns
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1, 1])
+
+    # Plot H and H_est
+    ax1 = plt.subplot(gs[0])
+    # plotSpaced(ax1, np.arange(H_est.shape[1]), H_est.T)
+    ax1.set_title('H est')
+    x = np.arange(H_est.shape[1])
+
+    ax2 = plt.subplot(gs[1])
+    ax2.set_title('Regulization path')
+
+    ymax = 0
+    for j in range(len(C)):
+        ymax = max(ymax,(C[i]/np.std(C[i])).max())
+    yoffset = ymax
+
+    for j, vec in enumerate(C):
+        if path[0][j][0] > 0:
+            ax1.plot(x,vec*W[:,j]+yoffset*i)
+
+    ymax = 0
+    for j in range(len(C)):
+        ymax = max(ymax,(C[i]/np.std(C[i])).max())
+    yoffset = ymax
+
+    for j, vec in enumerate(C):
+        if path[0][j][0] > 0:
+            ax2.plot(lambdas[0],path[0][j]+yoffset*i)
+
+
+
+    #plt.title("Hardmodelled component regulization path")
+    #plt.plot(lambdas[0], reg_paths[i][0].T)
+    plt.savefig("fig"+str(i)+"_path")
+    plt.clf()
