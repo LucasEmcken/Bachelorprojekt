@@ -24,13 +24,9 @@ torch.manual_seed(40)
 nmf = ShiftNMF(X_ART_NOISY, 3, lr=0.1, alpha=1e-6, patience=30, min_imp=0.001)
 W_est, H_est, tau_est = nmf.fit(verbose=1, max_iter=2000, tau_iter=0)
 
-# W_est = W_ART
-# H_est = H_ART
-# tau_est = TAU_ART
+fig = plt.figure(figsize=(10, 6))
 # Create a gridspec object with 2 rows and 3 columns
 gs = gridspec.GridSpec(1, 3, width_ratios=[3, 1, 1])
-
-fig = plt.figure(figsize=(10, 6))
 
 # Plot H and H_est
 ax1 = plt.subplot(gs[0])
@@ -47,12 +43,6 @@ violin_parts = ax3.violinplot(tau_est, showmeans=True, showmedians=False, vert=F
 ax3.set_title('Tau_est')
 change_violin_colors(violin_parts, color_list=['blue']*3)
 # change_violin_colors(violin_parts, [l.get_color() for l in ax3.get_children()[:3]])
-
-# Set tight layout
-plt.tight_layout()
-
-
-
 
 # plt.figure(figsize=(15,5))
 # plt.plot(H_est.T)
@@ -92,9 +82,10 @@ for i in range(len(H_est)):
     ax1.plot(x,H_est[i]/np.std(H_est[i])+yoffset*i, linewidth=4, color="k")
     for j, vec in enumerate(C):
         ax1.plot(x,vec*W[:,j]+yoffset*i)
-
-    plt.savefig("shiftcomponents_combined")
-    plt.clf()
+    # Set tight layout
+    plt.tight_layout()
+    fig.savefig("shiftcomponents_combined")
+    
         # plt.plot(vec*W[:,j])
     # plt.title("Component "+str(i)+" hardmodelled")
     # plt.savefig("fig"+str(i))
