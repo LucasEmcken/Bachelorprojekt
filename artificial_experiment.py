@@ -36,6 +36,7 @@ fig = plt.figure(figsize=(10, 6))
 ax1 = plt.subplot(gs[0])
 # plotSpaced(ax1, np.arange(H_est.shape[1]), H_est.T)
 ax1.set_title('H_est')
+x = np.arange(H_est.shape[1])
 
 ax2 = plt.subplot(gs[1])
 ax2.set_title('W_est')
