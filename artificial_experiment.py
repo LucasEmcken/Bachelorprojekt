@@ -59,7 +59,7 @@ plt.tight_layout()
 # plt.clf()
 ymax = 0
 for i in range(len(H_est)):
-    ymax = max(ymax,H_est[i]/np.std(H_est[i]).max())
+    ymax = max(ymax,(H_est[i]/np.std(H_est[i])).max())
 yoffset = ymax
 
 for i in range(len(H_est)):
