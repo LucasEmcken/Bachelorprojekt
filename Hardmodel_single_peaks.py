@@ -53,7 +53,7 @@ class Single_Model(torch.nn.Module):
         # self.spacing = torch.nn.Parameter((torch.rand(rank, 1, requires_grad=True,dtype=torch.float32)+1)*1000)
         
         self.sigma = torch.nn.Parameter(torch.tensor(init_sigma, requires_grad=True,dtype=torch.float32))
-        self.N = torch.nn.Parameter(torch.zeros(rank, requires_grad=True,dtype=torch.float32))
+        self.N = torch.nn.Parameter(torch.ones(rank, requires_grad=True,dtype=torch.float32)*0.5)
         # self.sigma = torch.nn.Parameter(torch.tensor([100, 100, 300, 300,50,50], requires_grad=True,dtype=torch.float32))
         #self.spacing = torch.nn.Parameter(torch.tensor([1000,1000,1000], requires_grad=True,dtype=torch.float32))
 
@@ -76,7 +76,7 @@ class Single_Model(torch.nn.Module):
 
         for i, sigma in enumerate(self.sigma.detach().numpy()):
             self.peak_i = i
-            rranges = (slice(sigma/2,sigma*2, (sigma*2-sigma/2)/20), slice(-4, 4, 1/20))
+            rranges = (slice(sigma/2,sigma*2, (sigma*2-sigma/2)/20), slice(-4, 4, 8/20))
 
             result = brute(self.evaluate, rranges) #[(sigma/2,sigma*2),(0,1)])
             print("sigma: "+str(result[0])+" n:"+str(1/ ( 1+np.exp(-1*result[1]) ) ) )
