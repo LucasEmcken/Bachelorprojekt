@@ -90,8 +90,7 @@ for i in range(len(H_est)):
 # Set tight layout
 plt.tight_layout()
 fig.savefig("shiftcomponents_combined")
-plt.clf()
-    
+ 
 
 
 
@@ -136,4 +135,3 @@ for i in range(len(reg_paths)):
     #plt.title("Hardmodelled component regulization path")
     #plt.plot(lambdas[0], reg_paths[i][0].T)
     plt.savefig("fig"+str(i)+"_path")
-    plt.clf()
