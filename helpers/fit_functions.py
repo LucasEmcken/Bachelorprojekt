@@ -7,9 +7,10 @@ import scipy
 from scipy.signal import find_peaks
 from scipy.signal import find_peaks_cwt
 import itertools
+import matplotlib.pyplot as plt
 
 
-def single_fit(X, min_height=0.1, min_sigma=100):
+def single_fit(X, min_height=0.1, min_sigma=100, lr=5):
         #find peaks in the sample
         peaks = find_peaks(X, height=max(X)*min_height)[0]
         sigmas = scipy.signal.peak_widths(X, peaks, wlen=1000)[0]/2 #.355*1.5
@@ -18,9 +19,12 @@ def single_fit(X, min_height=0.1, min_sigma=100):
         sigmas = np.delete(sigmas, select)
         peaks = np.delete(np.array(peaks), select)
         print("Found peaks:"+str(peaks))
-        model = Single_Model(X, peaks, sigmas, lr=5, alpha = 1e-7, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
+        model = Single_Model(X, peaks, sigmas, lr=lr, alpha = 1e-7, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
         W, C = model.fit(verbose=True)
-
+        fig, ax = plt.subplots()
+        ax.plot((X/np.std(X)).T)
+        ax.plot(np.matmul(W,C).T)
+        fig.show()
         mean = model.means.detach().numpy()
         sigmas = model.sigma.detach().numpy()
         n = model.N.detach().numpy()
