@@ -197,14 +197,14 @@ class Hard_Model(torch.nn.Module):
         return means[index_filter], sigma[index_filter], j_coup[index_filter], mult[index_filter], n[index_filter]
 
     
-    def fit(self, verbose=False, return_loss=False):
+    def fit(self, verbose=False, return_loss=False, threshold=0.15):
         running_loss = []
 
         
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
-            path, lambdas = self.fit_W()
+            path, lambdas = self.fit_W(threshold=threshold)
             
 
             # W_new = torch.zeros_like(self.W)
