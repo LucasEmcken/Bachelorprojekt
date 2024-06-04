@@ -17,12 +17,14 @@ class Hard_Model(torch.nn.Module):
     def __init__(self, X, H, peak_means, peak_sigmas, peak_n, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
         super().__init__()
         means = []
+        heights = []
         mult = []
         sigma = []
         J_coup = []
         n = []
         print("hypothesises:")
         print(H)
+        self.H = H
 
         #Number of single peaks
         self.nr_peaks = len(peak_means)
@@ -46,6 +48,18 @@ class Hard_Model(torch.nn.Module):
                 J_coup.append(0)
 
 
+        #get the heights from the X data
+        # print(X.shape)
+        # print(means)
+        for i in range(len(means)):
+            height = X[int(means[i])]
+            heights.append(height)
+        
+        # print('Means')
+        # print(means)
+        # print('Heights')
+        # print(heights)
+        
         rank = len(means)
         self.X = torch.tensor(X)
         if len(X.shape) == 1:
@@ -74,20 +88,20 @@ class Hard_Model(torch.nn.Module):
         self.spacing = torch.nn.Parameter(torch.tensor(J_coup, requires_grad=False,dtype=torch.float32))
         self.means = torch.tensor(means,dtype = torch.float32, requires_grad=False)
         self.N = torch.tensor(n, dtype=torch.float32, requires_grad=False)
-        print("")
-        print("initial values:")
-        print("means:")
-        print(self.means)
-        print("sigmas:")
-        print(self.sigma)
-        print("spacing(J-coupling):")
-        print(self.spacing)
+        # print("")
+        # print("initial values:")
+        # print("means:")
+        # print(self.means)
+        # print("sigmas:")
+        # print(self.sigma)
+        # print("spacing(J-coupling):")
+        # print(self.spacing)
 
         self.multiplicity = torch.tensor(mult,dtype=torch.int32, requires_grad=False)
-        print("multiplicity:")
-        print(self.multiplicity)
-        print("voigt N:")
-        print(self.N)
+        # print("multiplicity:")
+        # print(self.multiplicity)
+        # print("voigt N:")
+        # print(self.N)
 
         #self.multiplicity = torch.tensor([2,2,2])
         
@@ -133,7 +147,17 @@ class Hard_Model(torch.nn.Module):
     def multiplet(self, x, mult, mean, sigma, spacing, n):
         triangle = self.pascal(mult)
         t_max = torch.max(triangle)
-        #triangle = triangle/t_max
+        triangle = triangle/t_max
+        
+        #find the largest value from the mean in H and multiply it with the multiplicity
+        # height = self.H[torch.argmax(self.H[:,mean])]*mult
+        print(mean)
+        print(self.X.shape)
+        if (mult%2 == 0):
+            triangle = triangle*self.X[0, int(mean + spacing/2)]
+        else:
+            triangle = triangle*self.X[0, int(mean)]
+        
         y = torch.zeros(len(x),dtype=float)
 
         if mult%2 == 0:
