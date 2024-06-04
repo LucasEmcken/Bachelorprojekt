@@ -69,7 +69,7 @@ class Single_Model(torch.nn.Module):
         self.optimizer = Adam(self.parameters(), lr=lr)
         self.w_optimizer = Adam([self.W], lr=lr)
         
-        self.peak_position_optimizer  = Adam([self.means, self.N], lr=lr)
+        self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.N], lr=lr)
 
         self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
@@ -162,11 +162,12 @@ class Single_Model(torch.nn.Module):
             # # zero optimizer gradient
             #self.optimizer.zero_grad()
 
-            # self.fit_grad(self.peak_position_optimizer)
+            self.fit_grad(self.peak_position_optimizer)
             self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
             self.fit_grad(self.all_peak_optimizer, alpha=1e-5, min_improvement=1e-5)
-            self.fit_grad(self.optimizer)
-            # # forward
+            self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
+            # self.fit_grad(self.optimizer)
+            # # # forward
             output = self.forward()
 
             #loss calc
