@@ -25,7 +25,7 @@ mat = scipy.io.loadmat('helpers/data/NMR_40wines.mat')
 X_WINE = mat.get('X')
 WINE_PARAMETERS = mat.get('Y')
 #ppm is the scale of the x-axis.
-# ppm = mat.get('ppm')
+PPM_WINE = mat.get('ppm')[0]
 
 labels = mat.get('Label')
 # #try to uncover mixings
