@@ -25,7 +25,7 @@ def single_fit(X, min_height=0.1, min_sigma=100, lr=5, plot=False):
             fig, ax = plt.subplots()
             ax.plot((X/np.std(X)).T)
             for i, vec in enumerate(C):
-                ax.plot(W[i]*C[i])
+                ax.plot(W.flatten()[i]*C[i])
             fig.show()
         mean = model.means.detach().numpy()
         sigmas = model.sigma.detach().numpy()
