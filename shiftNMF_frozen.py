@@ -28,7 +28,7 @@ class ShiftNMF(torch.nn.Module):
         self.softplus = torch.nn.Softplus()
         #scale applied to self.H
         #self.scale = lambda x : self.softplus(x)/torch.max(self.softplus(x))
-        self.scale = lambda x : self.softplus(x) 
+        self.scale = lambda x : x/torch.max(x)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
