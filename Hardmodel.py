@@ -151,8 +151,6 @@ class Hard_Model(torch.nn.Module):
         
         #find the largest value from the mean in H and multiply it with the multiplicity
         # height = self.H[torch.argmax(self.H[:,mean])]*mult
-        print(mean)
-        print(self.X.shape)
         if (mult%2 == 0):
             triangle = triangle*self.X[0, int(mean + spacing/2)]
         else:
@@ -204,10 +202,12 @@ class Hard_Model(torch.nn.Module):
 
     def fit_W(self, threshold=0.15):
         # W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=self.nr_peaks)
-        W, path, lambdas, loss = get_optimal_W(self.X.detach().numpy(), self.C.detach().numpy(), threshold)
+        W, path, lambdas = get_optimal_W(self.X.detach().numpy(), self.C.detach().numpy(), threshold)
+
+        losses = [np.linalg.norm(self.X.detach().numpy() - w @ self.C.detach().numpy(), 'fro')/np.linalg.norm(self.X.detach().numpy(), 'fro') for w in path[0].T]
         W = torch.tensor(W, dtype=torch.float32)
         self.W = torch.nn.Parameter(W)
-        return path, lambdas
+        return path, lambdas, losses
 
     def return_values(self):
         W = self.W.detach().numpy()
@@ -228,7 +228,7 @@ class Hard_Model(torch.nn.Module):
         while not self.stopper.trigger() and not self.improvement_stopper.trigger():
             if (self.improvement_stopper.trigger()):
                 print(self.improvement_stopper.trigger())
-            path, lambdas = self.fit_W(threshold=threshold)
+            path, lambdas, losses = self.fit_W(threshold=threshold)
             
 
             # W_new = torch.zeros_like(self.W)
@@ -267,7 +267,7 @@ class Hard_Model(torch.nn.Module):
         W = self.W.detach().numpy()
         C = self.C.detach().numpy()
         if return_loss:
-            return W, C, running_loss, path, lambdas
+            return W, C, running_loss, path, lambdas, losses
         else:
             return W, C
 
