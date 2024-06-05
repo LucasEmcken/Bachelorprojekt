@@ -173,4 +173,4 @@ def get_optimal_W(X, H_hyb, threshold):
         if Loss[l] <= threshold:
             optimal_W = Ws[l]
             break
-    return optimal_W, path, lambdas, Loss
+    return optimal_W, path, lambdas
