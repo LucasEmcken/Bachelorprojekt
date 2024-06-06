@@ -152,6 +152,7 @@ if __name__ == "__main__":
     from helpers.data import X_clean
     import matplotlib.pyplot as plt
     import numpy as np
+    import pandas as pd
 
     # mat = scipy.io.loadmat('helpers/data/NMR_mix_DoE.mat')
     
@@ -160,8 +161,9 @@ if __name__ == "__main__":
     # target_labels = mat.get('yLabels')
     # axis = mat.get("Axis")
     X = X_clean
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
     alpha = 1e-5
-    nmf = NMF(X, 6, lr=1, alpha = alpha, factor=1, patience=10)
+    nmf = NMF(X, 3, lr=0.1, alpha = alpha, factor=1, patience=10)
     W, H = nmf.fit(verbose=True)
     print(f"Explained variance MVR_NMF: {explained_variance(X, np.matmul(W, H))}")
     plt.figure()

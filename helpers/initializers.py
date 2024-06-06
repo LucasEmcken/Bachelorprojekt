@@ -175,3 +175,11 @@ if __name__ == "__main__":
     plt.show()
     plt.plot(X.T)
     plt.show()
+    
+
+def PCA_init(X, noc):
+    #uses PCA to initialize the H of the NMF
+    from sklearn.decomposition import PCA
+    pca = PCA(n_components=noc)
+    pca.fit(X)
+    return pca.transform(X)

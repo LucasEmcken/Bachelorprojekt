@@ -5,8 +5,9 @@ from helpers.losses import frobeniusLoss, ShiftNMFLoss
 import matplotlib.pyplot as plt
 
 
+
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-8, patience=10, factor=0.9, min_imp=1e-6):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-8, factor=0.9, min_imp=1e-6, patience=10):
         super().__init__()
 
         self.rank = rank
@@ -21,26 +22,21 @@ class ShiftNMF(torch.nn.Module):
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True))
-        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True))
+        self.H = torch.nn.Parameter(torch.randn(rank, self.M, requires_grad=True)*0.05)
         # self.tau = torch.nn.Parameter(torch.randn(self.N, self.rank)*10, requires_grad=True)
         self.tau_tilde = torch.nn.Parameter(torch.zeros(self.N, self.rank, requires_grad=False))
         self.tau = lambda: self.tau_tilde
         
-        self.lambda_tau = 999999
-        
         # Prøv også med SGD
-        self.stopper = ChangeStopper(alpha=alpha, patience=patience + 5)
+        self.stopper = ChangeStopper(alpha=alpha, patience=patience)
         
         self.optimizer = Adam(self.parameters(), lr=lr)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         if factor < 1:
-            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-2)
+            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience)
         else:
             self.scheduler = None
-            
-    def reg_loss(self):
-        return self.lambda_tau * torch.sum(self.tau()**2)
 
     def forward(self):
         # Get half of the frequencies
@@ -72,11 +68,7 @@ class ShiftNMF(torch.nn.Module):
             output = self.forward()
 
             # backward
-            rec_loss = self.lossfn(output)
-            reg_loss = self.reg_loss()
-            
-            loss = rec_loss + reg_loss
-            
+            loss = self.lossfn(output)
             loss.backward()
 
             change = torch.sign(self.tau_tilde.grad)
@@ -86,7 +78,6 @@ class ShiftNMF(torch.nn.Module):
             #update tau
             if self.iters > tau_iter:
                 
-                reg_grad = self.lambda_tau * 2 * self.tau_tilde
                 change = (torch.abs(grad) > tau_thres) * change
                 
                 self.tau_tilde = torch.nn.Parameter(self.tau_tilde + change)
@@ -97,8 +88,8 @@ class ShiftNMF(torch.nn.Module):
                 self.scheduler.step(loss)
             
             running_loss.append(loss.item())
-            self.stopper.track_loss(rec_loss)
-            self.improvement_stopper.track_loss(rec_loss)
+            self.stopper.track_loss(loss)
+            self.improvement_stopper.track_loss(loss)
             
             # print loss
             if verbose:
@@ -116,13 +107,12 @@ class ShiftNMF(torch.nn.Module):
         else:
             return W, H, tau
 
-
 if __name__ == "__main__":
-    import scipy.io
-    import numpy as np
+    # import scipy.io
+    # import numpy as np
     import pandas as pd
     
-    X  = pd.read_csv("X.csv").to_numpy()
+    X  = pd.read_csv("X_duplet.csv").to_numpy()
 
     alpha = 1e-5
 
@@ -134,7 +124,6 @@ if __name__ == "__main__":
         plt.plot(signal)
     plt.title("H - the latent variables")
     plt.show()
-
 
     plt.figure()
     plt.imshow(W)

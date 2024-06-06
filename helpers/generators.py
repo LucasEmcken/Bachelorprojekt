@@ -15,29 +15,34 @@ def pascal(x):
 def lorentzian(x, mean, variance):
     return 1 / (np.pi * variance * (1 + ((x - mean) / variance) ** 2))
 
-def multiplet(x, mult, mean, sigma, spacing, type='lorentz'):
+def gauss(x, mean, variance):
+    return 1/(variance*np.sqrt(2*np.pi))*np.exp(-1/2*((x-mean)/variance)**2)
+
+def voigt(x, mean, variance, n):
+        return n*lorentzian(x,mean,variance)+(1-n)*gauss(x,mean,variance)
+
+def multiplet(x, mult, mean, sigma, spacing, n=0.5):
     triangle = pascal(mult)
     t_max = max(triangle)
     triangle = [t/t_max for t in triangle]
     y = np.zeros(len(x),dtype=float)
-    if type == 'lorentz':
-        if len(triangle)%2 == 0:
-            space = -1*len(triangle)/2*spacing+spacing/2
-        else:
-            space = -1*(len(triangle)-1)/2*spacing
 
+    if len(triangle)%2 == 0:
+        space = -1*len(triangle)/2*spacing+spacing/2
+    else:
+        space = -1*(len(triangle)-1)/2*spacing
+    for i,size in enumerate(triangle):
+        y += voigt(x, mean+space, sigma, n)*size
+        space +=  spacing
+    return np.array(y)
 
-        for i,size in enumerate(triangle):
-            y += lorentzian(x, mean+space, sigma)*size
-            space +=  spacing
-    return y
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     x = np.linspace(-100,100,1000)
     Y = multiplet(x,5, 5, 1, 20)
 
     plt.plot(x, Y)
-    plt.title('Lorentzian Function')
+    plt.title('')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.grid(True)

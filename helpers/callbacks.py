@@ -104,7 +104,6 @@ class ChangeStopper(Stopper):
     def track_loss(self, loss):
         if self.loss is None:
             self.loss = loss
-
         else:
             self.ploss = self.loss
             self.loss = loss
@@ -114,9 +113,6 @@ class ChangeStopper(Stopper):
                 self.counter += 1
             else:
                 self.counter = 0
-
-
-
 
     def trigger(self):
         return self.counter >= self.patience
