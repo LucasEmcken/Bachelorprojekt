@@ -18,8 +18,8 @@ def lorentzian(x, mean, variance):
 def gauss(x, mean, variance):
     return 1/(variance*np.sqrt(2*np.pi))*np.exp(-1/2*((x-mean)/variance)**2)
 
-def voigt(x, mean, variance, n):
-        return n*lorentzian(x,mean,variance)+(1-n)*gauss(x,mean,variance)
+def voigt(x, mean, fwhm, n):
+        return n*lorentzian(x,mean,fwhm/2)+(1-n)*gauss(x,mean,fwhm/(2*np.sqrt(2*np.log(2))))
 
 def multiplet(x, mult, mean, sigma, spacing, n=0.5):
     triangle = pascal(mult)

@@ -141,8 +141,8 @@ class Hard_Model(torch.nn.Module):
         return 1 / (torch.pi * variance * (1 + ((x - mean) / variance) ** 2))
     def gauss(self, x, mean, variance):
         return 1/(variance*(2*torch.pi)**(1/2))*torch.exp(-1/2*((x-mean)/variance)**2)
-    def voigt(self, x, mean, variance, n):
-        return n*self.lorentzian(x,mean,variance)+(1-n)*self.gauss(x,mean,variance)
+    def voigt(self, x, mean, fwhm, n):
+        return n*self.lorentzian(x,mean,fwhm/2)+(1-n)*self.gauss(x,mean,fwhm/(2*torch.sqrt(2*torch.log(2))))
 
     def multiplet(self, x, mult, mean, sigma, spacing, n):
         triangle = self.pascal(mult)

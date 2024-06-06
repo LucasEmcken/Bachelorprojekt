@@ -97,9 +97,9 @@ tau = np.random.randint(-1000, 1000, size=(N, d))
 # Purely positive underlying signals. I define them as 3 gaussian peaks with random mean and std.
 H = np.zeros((d,M))
 from helpers.generators import *
-H[0] = multiplet(t, 3, 6000, 110, 900)+multiplet(t, 1, 12000, 160, 0)
-H[1] = multiplet(t, 2, 2000, 150, 800)+multiplet(t, 2, 14000, 240, 1200)
-H[2] = multiplet(t, 3, 18000, 300, 1300)+multiplet(t, 4, 12000, 120, 800)
+H[0] = multiplet(t, 3, 6000, 110*2, 900)+multiplet(t, 1, 12000, 160*2, 0)
+H[1] = multiplet(t, 2, 2000, 150*2, 800)+multiplet(t, 2, 14000, 240*2, 1200)
+H[2] = multiplet(t, 3, 18000, 300*2, 1300)+multiplet(t, 4, 12000, 120*2, 800)
 H_ART = H
 W_ART = W
 TAU_ART = tau
