@@ -106,7 +106,7 @@ class Single_Model(torch.nn.Module):
     def gauss(self, x, mean, variance):
         return 1/(variance*(2*torch.pi)**(1/2))*torch.exp(-1/2*((x-mean)/variance)**2)
     def voigt(self, x, mean, fwhm, n):
-        return n*self.lorentzian(x,mean,fwhm/2)+(1-n)*self.gauss(x,mean,fwhm/(2*torch.sqrt(2*torch.log(2))))
+        return n*self.lorentzian(x,mean,fwhm/2)+(1-n)*self.gauss(x,mean,fwhm/(2*torch.sqrt(2*torch.log(torch.tensor(2)))))
 
     def forward_specified(self, sigma, N):
         time = torch.linspace(0,self.n_col,self.n_col)
