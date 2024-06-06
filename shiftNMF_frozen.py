@@ -12,7 +12,7 @@ from torchrl.modules.utils import inv_softplus
 
 
 class ShiftNMF(torch.nn.Module):
-    def __init__(self, X, rank, lr=0.2, alpha=1e-4, factor=1, min_imp=1e-3, patience=10):
+    def __init__(self, X, rank, lr=0.2, alpha=1e-4, factor=1, min_imp=1e-3, patience=10, normalize_components=True):
         super().__init__()
 
         self.rank = rank
@@ -27,8 +27,10 @@ class ShiftNMF(torch.nn.Module):
         self.softmax = torch.nn.Softmax(dim=1)
         self.softplus = torch.nn.Softplus()
         #scale applied to self.H
-        self.scale = lambda x : self.softplus(x)/torch.max(self.softplus(x))
-        # self.scale = lambda x : self.softplus(x)
+        if normalize_components:
+            self.scale = lambda x : self.softplus(x)/torch.max(self.softplus(x))
+        else:
+            self.scale = lambda x : self.softplus(x)
         self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
