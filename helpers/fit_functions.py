@@ -19,7 +19,7 @@ def single_fit(X, min_height=0.1, min_sigma=100, lr=5, plot=False):
         sigmas = np.delete(sigmas, select)
         peaks = np.delete(np.array(peaks), select)
         print("Found peaks:"+str(peaks))
-        model = Single_Model(X, peaks, sigmas, lr=lr, alpha = 1e-7, factor=1, patience=1, min_imp=0.001) # min_imp=1e-3)
+        model = Single_Model(X, peaks, sigmas, lr=lr, alpha = 1e-7, factor=1, patience=10, min_imp=0.001) # min_imp=1e-3)
         W, C = model.fit(verbose=True)
         if plot:
             fig, ax = plt.subplots()
