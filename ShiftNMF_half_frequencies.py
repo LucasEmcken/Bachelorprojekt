@@ -17,7 +17,7 @@ class ShiftNMF(torch.nn.Module):
         self.N, self.M = X.shape
 
         self.softplus = torch.nn.Softplus()
-        self.lossfn = ShiftNMFLoss(torch.fft.fft(self.X))
+        self.lossfn = frobeniusLoss(torch.fft.fft(self.X))
         
         # Initialization of Tensors/Matrices a and b with size NxR and RxM
         self.W = torch.nn.Parameter(torch.randn(self.N, rank, requires_grad=True))
