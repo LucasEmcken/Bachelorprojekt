@@ -218,7 +218,7 @@ class Hard_Model(torch.nn.Module):
         j_coup = self.spacing.detach().numpy()
         mult = self.multiplicity.detach().numpy()
         n = torch.sigmoid(self.N).detach().numpy()
-        return means[index_filter], sigma[index_filter], j_coup[index_filter], mult[index_filter], n[index_filter]
+        return means[index_filter], sigma[index_filter], j_coup[index_filter], mult[index_filter], n[index_filter], W[0][index_filter]
 
     
     def fit(self, verbose=False, return_loss=False, threshold=0.15):
