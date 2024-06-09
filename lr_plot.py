@@ -6,7 +6,7 @@ def plot_error(model_name = "OPT_NMF",data_name = "art", lr = "0.1"):
 	data = np.load("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(lr)+"_"+str(start_index)+"_"+"lr_test.npy")
 	data = np.expand_dims(data,0)
 	
-	for nr_components in range(start_index+1,9):
+	for nr_components in range(start_index+1,4):
 		data = np.append(data,np.expand_dims(np.load("./losses/"+str(data_name)+"_"+str(model_name)+"_"+str(lr)+"_"+str(nr_components)+"_"+"lr_test.npy"),0), axis=0)
 	x = np.arange(1,len(data)+1)
 	y = np.mean(data, axis=1)
@@ -21,7 +21,9 @@ def plot_error(model_name = "OPT_NMF",data_name = "art", lr = "0.1"):
 	plt.ylabel('Error')
 plt.figure(figsize=(15,8))
 # plot_error(model_name="OPT_NMF", data_name="wine", lr="0.01")
-plot_error(model_name="OPT_NMF", data_name="wine", lr="0.1")
+plot_error(model_name="GRAD_NMF", data_name="art", lr="0.1")
+plot_error(model_name="GRAD_NMF", data_name="art", lr="0.01")
+plot_error(model_name="GRAD_NMF", data_name="art", lr="1")
 # plot_error(model_name="OPT_NMF", data_name="wine", lr="1")
 
 # plot_error(model_name="DISC_NMF", data_name="art", lr="0.01")

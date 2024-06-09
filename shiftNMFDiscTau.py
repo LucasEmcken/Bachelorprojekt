@@ -29,9 +29,9 @@ class ShiftNMF(torch.nn.Module):
         
         # Prøv også med SGD
         self.stopper = ChangeStopper(alpha=alpha, patience=patience)
+        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         self.optimizer = Adam(self.parameters(), lr=lr)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
         
         if factor < 1:
             self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience)
