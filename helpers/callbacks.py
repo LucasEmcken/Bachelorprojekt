@@ -105,7 +105,9 @@ class ChangeStopper(Stopper):
         if self.loss is None:
             self.loss = loss
         else:
-            self.ploss = self.loss
+            if self.ploss is not None:
+                if self.loss<self.ploss:
+                    self.ploss = self.loss
             self.loss = loss
         
         if self.ploss is not None:
