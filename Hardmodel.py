@@ -14,7 +14,7 @@ torch.manual_seed(3)
 torch.autograd.set_detect_anomaly(True)
 
 class Hard_Model(torch.nn.Module):
-    def __init__(self, X, H, peak_means, peak_sigmas, peak_n, alpha=1e-6, lr=0.1, patience=5, factor=1, min_imp=1e-6):
+    def __init__(self, X, H, peak_means, peak_sigmas, peak_n,):
         super().__init__()
         means = []
         heights = []
@@ -88,43 +88,11 @@ class Hard_Model(torch.nn.Module):
         self.spacing = torch.nn.Parameter(torch.tensor(J_coup, requires_grad=False,dtype=torch.float32))
         self.means = torch.tensor(means,dtype = torch.float32, requires_grad=False)
         self.N = torch.tensor(n, dtype=torch.float32, requires_grad=False)
-        # print("")
-        # print("initial values:")
-        # print("means:")
-        # print(self.means)
-        # print("sigmas:")
-        # print(self.sigma)
-        # print("spacing(J-coupling):")
-        # print(self.spacing)
+        
 
         self.multiplicity = torch.tensor(mult,dtype=torch.int32, requires_grad=False)
-        # print("multiplicity:")
-        # print(self.multiplicity)
-        # print("voigt N:")
-        # print(self.N)
-
-        #self.multiplicity = torch.tensor([2,2,2])
-        
-        #self.H = torch.nn.Parameter(torch.randn(rank, n_col, requires_grad=True))
-        #After calculation should end up with the following dimensions: rank * n_col
-
-        # print(torch.mean(self.X, dim=0).shape
-
-        self.optimizer = Adam(self.parameters(), lr=lr)
-        
-        self.stopper = ChangeStopper(alpha=alpha, patience=patience)
-        self.improvement_stopper = ImprovementStopper(min_improvement=min_imp, patience=patience)
-        
-        # self.w_optimizer = Adam([self.W], lr=lr)
-        self.peak_position_optimizer  = Adam([self.means], lr=lr)
-        self.all_peak_optimizer = Adam([self.means, self.sigma, self.spacing], lr=lr)
-
         self.forward()
         
-        if factor < 1:
-            self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=patience-5)
-        else:
-            self.scheduler = None
 
     def pascal(self, x):
         triangle = torch.zeros((x, x))
@@ -222,52 +190,25 @@ class Hard_Model(torch.nn.Module):
 
     
     def fit(self, verbose=False, return_loss=False, threshold=0.15):
-        running_loss = []
+        path, lambdas, losses = self.fit_W(threshold=threshold)
 
-        
-        while not self.stopper.trigger() and not self.improvement_stopper.trigger():
-            if (self.improvement_stopper.trigger()):
-                print(self.improvement_stopper.trigger())
-            path, lambdas, losses = self.fit_W(threshold=threshold)
-            
+        # # forward
+        output = self.forward()
 
-            # W_new = torch.zeros_like(self.W)
-            # for i in range(self.n_row):
-            #     C_T = self.C.T.detach().numpy()
-            #     X_i = self.X[i].detach().numpy()
-                
-            #     W = nnls(C_T, X_i, alpha=alpha)
-                
-            #     W_new[i] = torch.tensor(W)
-            
-            # self.W = torch.nn.Parameter(W_new)
-            
-            # # forward
-            output = self.forward()
+        #loss calc
+        loss = self.lossfn.forward(output)
 
-            #loss calc
-            loss = self.lossfn.forward(output)
-            loss.backward()
-            # # Update
-            #self.optimizer.step()
-    
-            if self.scheduler != None:
-                self.scheduler.step(loss)
 
-            running_loss.append(loss.item())
-            self.stopper.track_loss(loss)
-            self.improvement_stopper.track_loss(loss)
-
-            # print loss
-            if verbose:
-                print(f"epoch: {len(running_loss)}, Loss: {loss.item()}")
-                # print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
+        # print loss
+        if verbose:
+            print(f"Loss: {loss.item()}")
+            # print(f"epoch: {len(running_loss)}, Loss: {loss.item()}", end='\r')
 
         # W = self.softplus(self.W).detach().numpy()
         W = self.W.detach().numpy()
         C = self.C.detach().numpy()
         if return_loss:
-            return W, C, running_loss, path, lambdas, losses
+            return W, C, loss, path, lambdas, losses
         else:
             return W, C
 
