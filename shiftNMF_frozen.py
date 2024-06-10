@@ -165,8 +165,8 @@ class ShiftNMF(torch.nn.Module):
                 self.scheduler.step(loss)
             
             running_loss.append(loss.item())
-            # self.stopper.track_loss(loss)
-            # self.improvement_stopper.track_loss(loss)
+            self.stopper.track_loss(loss)
+            self.improvement_stopper.track_loss(loss)
             
             # print loss
             if verbose:
