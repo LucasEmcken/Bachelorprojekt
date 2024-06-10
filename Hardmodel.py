@@ -168,7 +168,7 @@ class Hard_Model(torch.nn.Module):
             improvement_stopper.track_loss(loss)
         print(f"Loss: {loss.item()}")
 
-    def fit_W(self, threshold=0.15):
+    def fit_W(self, threshold=0.25):
         # W, path, lambdas = calc_scoring(self.X.detach().numpy(), self.C.detach().numpy(), inc_path=True, maxK=self.nr_peaks)
         W, path, lambdas = get_optimal_W(self.X.detach().numpy(), self.C.detach().numpy(), threshold)
 
@@ -189,7 +189,7 @@ class Hard_Model(torch.nn.Module):
         return means[index_filter], sigma[index_filter], j_coup[index_filter], mult[index_filter], n[index_filter], W[0][index_filter]
 
     
-    def fit(self, verbose=False, return_loss=False, threshold=0.15):
+    def fit(self, verbose=False, return_loss=False, threshold=0.25):
         path, lambdas, losses = self.fit_W(threshold=threshold)
 
         # # forward

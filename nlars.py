@@ -18,6 +18,8 @@ def NLARS(XtX, Xty, inc_path=False, maxK=np.inf):
             Mørup, M and Madsen, K.H. and Hansen, L.K. "Approximate L0
             constrained Non-negative Matrix and Tensor Factorization"   IEEE International Symposium on Circuits and Systems, ISCAS 2008.
             pp. 1328 - 1331, 2008
+            
+        This code was translated from matlab to python by chatGPT
     
     Input:
         XtX         matrix of size D x D           

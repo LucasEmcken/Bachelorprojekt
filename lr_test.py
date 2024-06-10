@@ -40,10 +40,10 @@ for i, lr in enumerate(lrs):
             from shiftNMFDiscTau import ShiftNMF
             model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=30, min_imp=min_imp)
         if model_name == "OPT_NMF":
-            from shiftNMF_frozen import ShiftNMF
+            from shiftNMF import ShiftNMF
             model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=30, min_imp=min_imp)
         if model_name == "GRAD_NMF":
-            from ShiftNMF_half_frequencies import ShiftNMF
+            from ShiftNMF_naive import ShiftNMF
             model = ShiftNMF(X, nr_components, lr=lr, alpha = alpha, factor=1, patience=30, min_imp=min_imp)
         returns = model.fit(verbose=True, return_loss=True, max_iter=5000)
         loss = returns[-1]
