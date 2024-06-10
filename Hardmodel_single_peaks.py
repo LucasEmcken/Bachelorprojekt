@@ -71,8 +71,10 @@ class Single_Model(torch.nn.Module):
         
         self.peak_position_optimizer  = Adam([self.means], lr=lr)
         self.all_peak_optimizer = Adam([self.means, self.sigma, self.N], lr=lr)
+        self.alpha = alpha
+        self.min_imp = min_imp
 
-        self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
+        self.fit_grad(self.w_optimizer, alpha=self.alpha, min_improvement=self.min_imp)
 
         for i, sigma in enumerate(self.sigma.detach().numpy()):
             self.peak_i = i
@@ -162,10 +164,8 @@ class Single_Model(torch.nn.Module):
             # # zero optimizer gradient
             #self.optimizer.zero_grad()
 
-            self.fit_grad(self.peak_position_optimizer)
-            self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
-            self.fit_grad(self.all_peak_optimizer, alpha=1e-5, min_improvement=1e-5)
-            self.fit_grad(self.w_optimizer, alpha=1e-5, min_improvement=1e-5)
+            self.fit_grad(self.w_optimizer, alpha=self.alpha, min_improvement=self.min_imp)
+            self.fit_grad(self.all_peak_optimizer, alpha=self.alpha, min_improvement=self.min_imp)
             # self.fit_grad(self.optimizer)
             # # # forward
             output = self.forward()
